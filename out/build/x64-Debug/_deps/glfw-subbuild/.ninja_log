@@ -1,0 +1,37 @@
+# ninja log v5
+2	73	7658921641588408	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-mkdir	b8d93db3dfcff88c
+12	7714	0	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-update	d1fcb0516a70e9e6
+7714	7781	7658928977042303	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-patch	49a988ead251a748
+7917	7984	7658928979079854	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-install	e2946a5d8b44c64a
+7714	7781	7658928977042303	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-patch	49a988ead251a748
+2	73	7658921641588408	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-mkdir	b8d93db3dfcff88c
+74	45921	7658922100099857	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-download	242bdabf3d9789b3
+12	7714	0	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-update	d1fcb0516a70e9e6
+74	45921	7658922100099857	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-download	242bdabf3d9789b3
+7781	7848	7658928977709898	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-configure	77093205070ef921
+8051	8140	7658928980636165	CMakeFiles/glfw-populate-complete	fa56ef3b9d41747
+7781	7848	7658928977709898	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-configure	77093205070ef921
+7848	7917	7658928978404902	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-build	45d3017594f29cf0
+7848	7917	7658928978404902	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-build	45d3017594f29cf0
+7984	8051	7658928979742155	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-test	f99d4c62a20cc499
+7917	7984	7658928979079854	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-install	e2946a5d8b44c64a
+7984	8051	7658928979742155	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-test	f99d4c62a20cc499
+8051	8140	7658928980636165	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-done	fa56ef3b9d41747
+8051	8140	7658928980636165	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/CMakeFiles/glfw-populate-complete	fa56ef3b9d41747
+8051	8140	7658928980636165	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-done	fa56ef3b9d41747
+13	1708	0	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-update	d1fcb0516a70e9e6
+13	1708	0	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-update	d1fcb0516a70e9e6
+1709	1776	7658929840406750	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-patch	49a988ead251a748
+1709	1776	7658929840406750	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-patch	49a988ead251a748
+1776	1842	7658929841074979	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-configure	77093205070ef921
+1776	1842	7658929841074979	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-configure	77093205070ef921
+1842	1913	7658929841781329	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-build	45d3017594f29cf0
+1842	1913	7658929841781329	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-build	45d3017594f29cf0
+1913	1979	7658929842447731	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-install	e2946a5d8b44c64a
+1913	1979	7658929842447731	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-install	e2946a5d8b44c64a
+1979	2047	7658929843123005	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-test	f99d4c62a20cc499
+1979	2047	7658929843123005	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-test	f99d4c62a20cc499
+2047	2140	7658929844055221	CMakeFiles/glfw-populate-complete	fa56ef3b9d41747
+2047	2140	7658929844055221	glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-done	fa56ef3b9d41747
+2047	2140	7658929844055221	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/CMakeFiles/glfw-populate-complete	fa56ef3b9d41747
+2047	2140	7658929844055221	C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/glfw-populate-done	fa56ef3b9d41747
