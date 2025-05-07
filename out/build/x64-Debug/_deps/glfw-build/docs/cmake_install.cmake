@@ -1,8 +1,8 @@
-# Install script for directory: C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-src/docs
+# Install script for directory: C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-src/docs
 
 # Set the install prefix
 if(NOT DEFINED CMAKE_INSTALL_PREFIX)
-  set(CMAKE_INSTALL_PREFIX "C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/install/x64-Debug")
+  set(CMAKE_INSTALL_PREFIX "C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/install/x64-Debug")
 endif()
 string(REGEX REPLACE "/$" "" CMAKE_INSTALL_PREFIX "${CMAKE_INSTALL_PREFIX}")
 

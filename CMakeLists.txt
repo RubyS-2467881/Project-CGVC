@@ -7,6 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Add your local 'includes' folder to the include path
 include_directories(${CMAKE_SOURCE_DIR}/includes)
+include_directories(${CMAKE_SOURCE_DIR}/camera)
 
 # ---- Fetch GLFW using FetchContent ----
 include(FetchContent)
@@ -21,7 +22,7 @@ FetchContent_MakeAvailable(glfw)
 add_executable(Project-CGVC
     main.cpp
     glad.c
-)
+ "glm.h" "camera/camera.h" "camera/cameraDirection.h")
 
 # Make sure glad.c uses the right includes
 target_include_directories(Project-CGVC PRIVATE ${CMAKE_SOURCE_DIR}/includes)

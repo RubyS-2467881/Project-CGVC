@@ -3,20 +3,25 @@
 
 cmake_minimum_required(VERSION 3.5)
 
+# If CMAKE_DISABLE_SOURCE_CHANGES is set to true and the source directory is an
+# existing directory in our source tree, calling file(MAKE_DIRECTORY) on it
+# would cause a fatal error, even though it would be a no-op.
+if(NOT EXISTS "C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-src")
+  file(MAKE_DIRECTORY "C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-src")
+endif()
 file(MAKE_DIRECTORY
-  "C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-src"
-  "C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-build"
-  "C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix"
-  "C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/tmp"
-  "C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp"
-  "C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src"
-  "C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp"
+  "C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-build"
+  "C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix"
+  "C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/tmp"
+  "C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp"
+  "C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src"
+  "C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp"
 )
 
 set(configSubDirs )
 foreach(subDir IN LISTS configSubDirs)
-    file(MAKE_DIRECTORY "C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/${subDir}")
+    file(MAKE_DIRECTORY "C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp/${subDir}")
 endforeach()
 if(cfgdir)
-  file(MAKE_DIRECTORY "C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp${cfgdir}") # cfgdir has leading slash
+  file(MAKE_DIRECTORY "C:/Users/robin/Documents/UHasselt/CG&VC/Project/Project-CGVC/out/build/x64-Debug/_deps/glfw-subbuild/glfw-populate-prefix/src/glfw-populate-stamp${cfgdir}") # cfgdir has leading slash
 endif()
