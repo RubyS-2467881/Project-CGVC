@@ -9,6 +9,7 @@
 #include <vector>
 #include <glm/gtx/rotate_vector.hpp>µ
 #include <cmath>
+#include <glm/gtx/quaternion.hpp>
 
 void framebuffer_size_callback(GLFWwindow * window, int width, int height);
 void processInput(GLFWwindow* window);
@@ -270,10 +271,28 @@ int main() {
         leftOffset = sideDir * (-railSpacing / 2.0f);
         rightOffset = sideDir * (railSpacing / 2.0f);
 
-        // Straight
-        bool useBezierHill = (side == 1 || side == 3);
-        if (useBezierHill) {
-            for (int i = 0; i < segmentsPerSide; ++i) {
+        for (int i = 0; i < segmentsPerSide; ++i) {
+			// Bezier Hill
+            if (i == 1) {
+                glm::vec3 leftStart = position + leftOffset;
+                glm::vec3 rightStart = position + rightOffset;
+
+                glm::vec3 leftEnd = leftStart + direction * segmentLength;
+                glm::vec3 rightEnd = rightStart + direction * segmentLength;
+
+                leftRailPath.push_back(leftStart);
+                leftRailPath.push_back(leftEnd);
+
+                rightRailPath.push_back(rightStart);
+                rightRailPath.push_back(rightEnd);
+
+                leftStraightSegments.push_back({ leftStart, leftEnd });
+                rightStraightSegments.push_back({ rightStart, rightEnd });
+
+                position += direction * segmentLength;
+            }
+            // Straight
+            else {
                 std::vector<glm::vec3> leftHill = generateBezierHill(position + leftOffset, direction, segmentLength, 500, 0.5f);
                 std::vector<glm::vec3> rightHill = generateBezierHill(position + rightOffset, direction, segmentLength, 500, 0.5f);
 
@@ -295,27 +314,6 @@ int main() {
                 position += direction * segmentLength;
             }
         }
-        else {
-            for (int i = 0; i < segmentsPerSide; ++i) {
-                glm::vec3 leftStart = position + leftOffset;
-                glm::vec3 rightStart = position + rightOffset;
-
-                glm::vec3 leftEnd = leftStart + direction * segmentLength;
-                glm::vec3 rightEnd = rightStart + direction * segmentLength;
-
-                leftRailPath.push_back(leftStart);
-                leftRailPath.push_back(leftEnd);
-
-                rightRailPath.push_back(rightStart);
-                rightRailPath.push_back(rightEnd);
-
-                leftStraightSegments.push_back({ leftStart, leftEnd });
-                rightStraightSegments.push_back({ rightStart, rightEnd });
-
-                position += direction * segmentLength;
-            }
-        }
-
 
         // Curve
         glm::vec3 right = glm::normalize(glm::cross(glm::vec3(0, 1, 0), direction));
@@ -347,12 +345,11 @@ int main() {
 	for (int i = 0; i < centerRail.size(); ++i) {
 		std::cout << "Center Rail Point " << i << ": (" << centerRail[i].x << ", " << centerRail[i].y << ", " << centerRail[i].z << ")\n";
 	}
+
 	int index = findClosestXZIndex(cartPosition, centerRail);
     float cartSpeed = 2.0f;
     float cartDistance = 0.0f;
-
     float wheelRotation = 0.0f;
-
 
     // Main Loop
     while (!glfwWindowShouldClose(window)) {
@@ -360,12 +357,11 @@ int main() {
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
+        //Animation
         cartDistance += cartSpeed * deltaTime;
-        float distanceTravelled = cartSpeed * deltaTime; // Or based on cartDistance
+        float distanceTravelled = cartSpeed * deltaTime;
         wheelRotation = fmod(wheelRotation, 2.0f * glm::pi<float>());
 
-
-        // Advance along the rail if distance exceeds segment length
         while (index < static_cast<int>(centerRail.size()) - 1) {
             glm::vec3 from = centerRail[index];
             glm::vec3 to = centerRail[index + 1];
@@ -375,11 +371,11 @@ int main() {
 
             cartDistance -= segmentLength;
             ++index;
+			if (index >= static_cast<int>(centerRail.size()) - 1) {
+				cartDistance = 0.0f;
+                index = 0;
+			}
         }
-
-        // Clamp at end of path
-        if (index >= static_cast<int>(centerRail.size()) - 1)
-            index = static_cast<int>(centerRail.size()) - 2;
 
         processInput(window);
 
@@ -404,19 +400,29 @@ int main() {
         glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(viewCamera));
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projectionCamera));
 
+		// Cart
         glm::vec3 from = centerRail[index];
         glm::vec3 to = centerRail[index + 1];
-        float t = cartDistance / glm::distance(from, to); // Interpolation factor
+        float t = cartDistance / glm::distance(from, to);
 
         glm::vec3 cartPos = glm::mix(from, to, t);
         glm::vec3 direction = glm::normalize(to - from);
         float angle = atan2(direction.x, direction.z);
+        glm::vec3 up = glm::vec3(0.0f, 1.0f, 0.0f);
+
+        glm::vec3 xAxis = direction;
+        glm::vec3 zAxis = glm::normalize(glm::cross(up, xAxis));
+        glm::vec3 yAxis = glm::cross(zAxis, xAxis);
+
+        glm::mat4 rotationMatrix = glm::mat4(1.0f);
+        rotationMatrix[0] = glm::vec4(xAxis, 0.0f);
+        rotationMatrix[1] = glm::vec4(yAxis, 0.0f);
+        rotationMatrix[2] = glm::vec4(zAxis, 0.0f);
 
         // Body
         glm::mat4 model = glm::mat4(1.0f);
         model = glm::translate(model, cartPos + glm::vec3(0.0f, 0.3f, 0.0f));
-        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // base alignment
-        model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
+        model *= rotationMatrix;
         model = glm::scale(model, glm::vec3(1.0f, 0.25f, 0.5f));
 
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
@@ -425,29 +431,17 @@ int main() {
 
         // Wheels
         glBindVertexArray(cylinderVAO);
-
         for (int i = 0; i < 4; ++i) {
             model = glm::mat4(1.0f);
-
-            // First move to the cart's position
-            model = glm::translate(model, cartPos + glm::vec3(0.0f, 0.0f, 0.0f));
-
-
-            // Align base orientation (cart model points sideways by default)
-            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // base alignment
-            model = glm::rotate(model, wheelRotation, glm::vec3(0.0f, 0.0f, 1.0f));
-            model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));               // face direction of motion
-
-            // Apply wheel's local offset in cart's local space
+            model = glm::translate(model, cartPos + glm::vec3(0.0f, 0.2f, 0.0f));
+            model *= rotationMatrix;
             model = glm::translate(model, wheelPositions[i]);
-
-            // Rotate wheel to lie flat (if it's a cylinder on its side)
+            model = glm::rotate(model, wheelRotation, glm::vec3(0.0f, 0.0f, 1.0f));
             model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
 
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
             glDrawArrays(GL_TRIANGLE_STRIP, 0, cylinderVertexCount);
         }
-
 
         drawRail(leftRailPath, shaderProgram, railVAO, modelLoc);
         drawRail(rightRailPath, shaderProgram, railVAO, modelLoc);
@@ -706,7 +700,6 @@ glm::vec3 calculateMidpoint() {
 std::vector<glm::vec3> calculateCenterRail(const std::vector<glm::vec3>& leftRail, const std::vector<glm::vec3>& rightRail) {
     std::vector<glm::vec3> centerRail;
 
-    // Ensure both rails have the same number of points
     if (leftRail.size() != rightRail.size()) {
         std::cerr << "Error: Rail vectors must be the same size.\n";
         return centerRail;
@@ -721,11 +714,6 @@ std::vector<glm::vec3> calculateCenterRail(const std::vector<glm::vec3>& leftRai
 }
 
 int findClosestXZIndex(const glm::vec3& centerPoint, const std::vector<glm::vec3>& centerRail) {
-    if (centerRail.empty()) {
-        std::cerr << "Center rail is empty.\n";
-        return -1; // Indicate invalid index
-    }
-
     float minDistSq = std::numeric_limits<float>::max();
     int closestIndex = -1;
 
