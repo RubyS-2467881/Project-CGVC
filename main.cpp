@@ -1,4 +1,4 @@
-﻿#include <glad/glad.h>
+﻿#include <GLAD/glad.h>
 #include <GLFW/glfw3.h>
 #include <iostream>
 
@@ -7,8 +7,10 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <camera.h>
 #include <vector>
+#include <glm/gtx/rotate_vector.hpp>µ
+#include <cmath>
 
-void framebuffer_size_callback(GLFWwindow* window, int width, int height);
+void framebuffer_size_callback(GLFWwindow * window, int width, int height);
 void processInput(GLFWwindow* window);
 void processMouseInput(GLFWwindow* window, double x, double y);
 void drawRail(const std::vector<glm::vec3>& path, unsigned int shaderProgram, unsigned int VAO, int modelLoc);
@@ -18,6 +20,11 @@ int generateCylinder(int segments, unsigned int& vertexCount);
 void generateTiesBetweenCurvedRails(const std::vector<glm::vec3>& leftRailPath, const std::vector<glm::vec3>& rightRailPath, std::vector<glm::vec3>& ties);
 void generateTiesBetweenStraightRails(const std::vector<std::pair<glm::vec3, glm::vec3>>& leftSegments, const std::vector<std::pair<glm::vec3, glm::vec3>>& rightSegments, std::vector<glm::vec3>& ties, int numTies);
 std::vector<glm::vec3> generateCurvedRailAroundCenter(glm::vec3 center, float radius, float startAngle, float angle, int numSegments, float offsetDistance);
+glm::vec3 calculateMidpoint();
+std::vector<glm::vec3> calculateCenterRail(const std::vector<glm::vec3>& leftRail, const std::vector<glm::vec3>& rightRail);
+int findClosestXZIndex(const glm::vec3& centerPoint, const std::vector<glm::vec3>& centerRail);
+std::vector<glm::vec3> generateBezierHill(glm::vec3 start, glm::vec3 direction, float segmentLength, int numSegments, float hillHeight);
+void drawMidRail(const std::vector<glm::vec3>& path, float y, unsigned int shaderProgram, unsigned int VAO, int modelLoc);
 
 // Shaders
 const char* vertexCameraShaderSource = R"(
@@ -64,55 +71,55 @@ float railTopY = -0.15f;
 float wheelCenterY = railTopY + wheelRadius + 0.15f;
 
 glm::vec3 wheelPositions[4] = {
-    { 1.55f, wheelCenterY, -0.2f},
-    { 2.45f, wheelCenterY, -0.2f},
-    { 1.55f, wheelCenterY,  0.2f},
-    { 2.45f, wheelCenterY,  0.2f}
+    { -0.45f, wheelCenterY, -0.2f},
+    { 0.45f, wheelCenterY, -0.2f},
+    { -0.45f, wheelCenterY,  0.2f},
+    { 0.45f, wheelCenterY,  0.2f}
 };
 
 // Body
 float cubeVertices[] = {
-     1.5f, -0.5f, -0.5f,
-     2.5f, -0.5f, -0.5f,
-     2.5f,  0.5f, -0.5f,
-     2.5f,  0.5f, -0.5f,
-     1.5f,  0.5f, -0.5f,
-     1.5f, -0.5f, -0.5f,
+     -0.5f, -0.5f, -0.5f,
+     0.5f, -0.5f, -0.5f,
+     0.5f,  0.5f, -0.5f,
+     0.5f,  0.5f, -0.5f,
+     -0.5f,  0.5f, -0.5f,
+     -0.5f, -0.5f, -0.5f,
 
-     1.5f, -0.5f,  0.5f,
-     2.5f, -0.5f,  0.5f,
-     2.5f,  0.5f,  0.5f,
-     2.5f,  0.5f,  0.5f,
-     1.5f,  0.5f,  0.5f,
-     1.5f, -0.5f,  0.5f,
+     -0.5f, -0.5f,  0.5f,
+     0.5f, -0.5f,  0.5f,
+     0.5f,  0.5f,  0.5f,
+     0.5f,  0.5f,  0.5f,
+     -0.5f,  0.5f,  0.5f,
+     -0.5f, -0.5f,  0.5f,
 
-     1.5f,  0.5f,  0.5f,
-     1.5f,  0.5f, -0.5f,
-     1.5f, -0.5f, -0.5f,
-     1.5f, -0.5f, -0.5f,
-     1.5f, -0.5f,  0.5f,
-     1.5f,  0.5f,  0.5f,
+     -0.5f,  0.5f,  0.5f,
+     -0.5f,  0.5f, -0.5f,
+     -0.5f, -0.5f, -0.5f,
+     -0.5f, -0.5f, -0.5f,
+     -0.5f, -0.5f,  0.5f,
+     -0.5f,  0.5f,  0.5f,
 
-     2.5f,  0.5f,  0.5f,
-     2.5f,  0.5f, -0.5f,
-     2.5f, -0.5f, -0.5f,
-     2.5f, -0.5f, -0.5f,
-     2.5f, -0.5f,  0.5f,
-     2.5f,  0.5f,  0.5f,
+     0.5f,  0.5f,  0.5f,
+     0.5f,  0.5f, -0.5f,
+     0.5f, -0.5f, -0.5f,
+     0.5f, -0.5f, -0.5f,
+     0.5f, -0.5f,  0.5f,
+     0.5f,  0.5f,  0.5f,
 
-     1.5f, -0.5f, -0.5f,
-     2.5f, -0.5f, -0.5f,
-     2.5f, -0.5f,  0.5f,
-     2.5f, -0.5f,  0.5f,
-     1.5f, -0.5f,  0.5f,
-     1.5f, -0.5f, -0.5f,
+     -0.5f, -0.5f, -0.5f,
+     0.5f, -0.5f, -0.5f,
+     0.5f, -0.5f,  0.5f,
+     0.5f, -0.5f,  0.5f,
+     -0.5f, -0.5f,  0.5f,
+     -0.5f, -0.5f, -0.5f,
 
-     1.5f,  0.5f, -0.5f,
-     2.5f,  0.5f, -0.5f,
-     2.5f,  0.5f,  0.5f,
-     2.5f,  0.5f,  0.5f,
-     1.5f,  0.5f,  0.5f,
-     1.5f,  0.5f, -0.5f
+     -0.5f,  0.5f, -0.5f,
+     0.5f,  0.5f, -0.5f,
+     0.5f,  0.5f,  0.5f,
+     0.5f,  0.5f,  0.5f,
+     -0.5f,  0.5f,  0.5f,
+     -0.5f,  0.5f, -0.5f
 };
 
 // Rail
@@ -190,7 +197,7 @@ int main() {
         return -1;
     }
     glfwMakeContextCurrent(window);
-	glfwSetCursorPosCallback(window, processMouseInput);
+    glfwSetCursorPosCallback(window, processMouseInput);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -200,7 +207,7 @@ int main() {
         return -1;
     }
 
-	// Shader Setup
+    // Shader Setup
     unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
     glShaderSource(vertexShader, 1, &vertexCameraShaderSource, NULL);
     glCompileShader(vertexShader);
@@ -217,7 +224,7 @@ int main() {
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
 
-	// Vertex Array Object and Buffer Object Setup
+    // Vertex Array Object and Buffer Object Setup
     unsigned int VAO, VBO;
     glGenVertexArrays(1, &VAO);
     glGenBuffers(1, &VBO);
@@ -245,11 +252,11 @@ int main() {
 
     glEnable(GL_DEPTH_TEST);
 
-	// Rail Generation
+    // Rail Generation
     std::vector<glm::vec3> leftRailPath;
     std::vector<glm::vec3> rightRailPath;
-	std::vector<glm::vec3> leftCurvedRailPath;
-	std::vector<glm::vec3> rightCurvedRailPath;
+    std::vector<glm::vec3> leftCurvedRailPath;
+    std::vector<glm::vec3> rightCurvedRailPath;
     std::vector<std::pair<glm::vec3, glm::vec3>> leftStraightSegments;
     std::vector<std::pair<glm::vec3, glm::vec3>> rightStraightSegments;
 
@@ -264,24 +271,51 @@ int main() {
         rightOffset = sideDir * (railSpacing / 2.0f);
 
         // Straight
-        for (int i = 0; i < segmentsPerSide; ++i) {
-            glm::vec3 leftStart = position + leftOffset;
-            glm::vec3 rightStart = position + rightOffset;
+        bool useBezierHill = (side == 1 || side == 3);
+        if (useBezierHill) {
+            for (int i = 0; i < segmentsPerSide; ++i) {
+                std::vector<glm::vec3> leftHill = generateBezierHill(position + leftOffset, direction, segmentLength, 500, 0.5f);
+                std::vector<glm::vec3> rightHill = generateBezierHill(position + rightOffset, direction, segmentLength, 500, 0.5f);
 
-            glm::vec3 leftEnd = leftStart + direction * segmentLength;
-            glm::vec3 rightEnd = rightStart + direction * segmentLength;
+                for (size_t j = 0; j < leftHill.size() - 1; ++j) {
+                    glm::vec3 l0 = leftHill[j];
+                    glm::vec3 l1 = leftHill[j + 1];
+                    glm::vec3 r0 = rightHill[j];
+                    glm::vec3 r1 = rightHill[j + 1];
 
-            leftRailPath.push_back(leftStart);
-            leftRailPath.push_back(leftEnd);
+                    leftRailPath.push_back(l0);
+                    leftRailPath.push_back(l1);
+                    rightRailPath.push_back(r0);
+                    rightRailPath.push_back(r1);
 
-            rightRailPath.push_back(rightStart);
-            rightRailPath.push_back(rightEnd);
+                    leftStraightSegments.push_back({ l0, l1 });
+                    rightStraightSegments.push_back({ r0, r1 });
+                }
 
-            leftStraightSegments.push_back({ leftStart, leftEnd });
-            rightStraightSegments.push_back({ rightStart, rightEnd });
-
-            position += direction * segmentLength;
+                position += direction * segmentLength;
+            }
         }
+        else {
+            for (int i = 0; i < segmentsPerSide; ++i) {
+                glm::vec3 leftStart = position + leftOffset;
+                glm::vec3 rightStart = position + rightOffset;
+
+                glm::vec3 leftEnd = leftStart + direction * segmentLength;
+                glm::vec3 rightEnd = rightStart + direction * segmentLength;
+
+                leftRailPath.push_back(leftStart);
+                leftRailPath.push_back(leftEnd);
+
+                rightRailPath.push_back(rightStart);
+                rightRailPath.push_back(rightEnd);
+
+                leftStraightSegments.push_back({ leftStart, leftEnd });
+                rightStraightSegments.push_back({ rightStart, rightEnd });
+
+                position += direction * segmentLength;
+            }
+        }
+
 
         // Curve
         glm::vec3 right = glm::normalize(glm::cross(glm::vec3(0, 1, 0), direction));
@@ -294,25 +328,58 @@ int main() {
         leftRailPath.insert(leftRailPath.end(), leftCurve.begin(), leftCurve.end());
         rightRailPath.insert(rightRailPath.end(), rightCurve.begin(), rightCurve.end());
 
-		leftCurvedRailPath.insert(leftCurvedRailPath.end(), leftCurve.begin(), leftCurve.end());
-		rightCurvedRailPath.insert(rightCurvedRailPath.end(), rightCurve.begin(), rightCurve.end());
+        leftCurvedRailPath.insert(leftCurvedRailPath.end(), leftCurve.begin(), leftCurve.end());
+        rightCurvedRailPath.insert(rightCurvedRailPath.end(), rightCurve.begin(), rightCurve.end());
 
         position = (leftCurve.back() + rightCurve.back()) * 0.5f;
         direction = glm::normalize(right);
     }
 
-	// Ties
+    // Ties
     std::vector<glm::vec3> tiesCurved;
     generateTiesBetweenCurvedRails(leftCurvedRailPath, rightCurvedRailPath, tiesCurved);
 
-	std::vector<glm::vec3> tiesStraight;
-	generateTiesBetweenStraightRails(leftStraightSegments, rightStraightSegments, tiesStraight, 5);
+    std::vector<glm::vec3> tiesStraight;
+    generateTiesBetweenStraightRails(leftStraightSegments, rightStraightSegments, tiesStraight, 5);
 
-	// Main Loop
+    glm::vec3 cartPosition = calculateMidpoint();
+	std::vector<glm::vec3> centerRail = calculateCenterRail(leftRailPath, rightRailPath);
+	for (int i = 0; i < centerRail.size(); ++i) {
+		std::cout << "Center Rail Point " << i << ": (" << centerRail[i].x << ", " << centerRail[i].y << ", " << centerRail[i].z << ")\n";
+	}
+	int index = findClosestXZIndex(cartPosition, centerRail);
+    float cartSpeed = 2.0f;
+    float cartDistance = 0.0f;
+
+    float wheelRotation = 0.0f;
+
+
+    // Main Loop
     while (!glfwWindowShouldClose(window)) {
         float currentFrame = static_cast<float>(glfwGetTime());
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
+
+        cartDistance += cartSpeed * deltaTime;
+        float distanceTravelled = cartSpeed * deltaTime; // Or based on cartDistance
+        wheelRotation = fmod(wheelRotation, 2.0f * glm::pi<float>());
+
+
+        // Advance along the rail if distance exceeds segment length
+        while (index < static_cast<int>(centerRail.size()) - 1) {
+            glm::vec3 from = centerRail[index];
+            glm::vec3 to = centerRail[index + 1];
+            float segmentLength = glm::distance(from, to);
+
+            if (cartDistance < segmentLength) break;
+
+            cartDistance -= segmentLength;
+            ++index;
+        }
+
+        // Clamp at end of path
+        if (index >= static_cast<int>(centerRail.size()) - 1)
+            index = static_cast<int>(centerRail.size()) - 2;
 
         processInput(window);
 
@@ -332,14 +399,24 @@ int main() {
         glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
 
         // Camera
-		glm::mat4 projectionCamera = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
-		glm::mat4 viewCamera = camera.viewMatrix();
-		glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(viewCamera));
-		glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projectionCamera));
+        glm::mat4 projectionCamera = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
+        glm::mat4 viewCamera = camera.viewMatrix();
+        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(viewCamera));
+        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projectionCamera));
+
+        glm::vec3 from = centerRail[index];
+        glm::vec3 to = centerRail[index + 1];
+        float t = cartDistance / glm::distance(from, to); // Interpolation factor
+
+        glm::vec3 cartPos = glm::mix(from, to, t);
+        glm::vec3 direction = glm::normalize(to - from);
+        float angle = atan2(direction.x, direction.z);
 
         // Body
         glm::mat4 model = glm::mat4(1.0f);
-        model = glm::translate(model, glm::vec3(0.0f, 0.3f, 0.0f));
+        model = glm::translate(model, cartPos + glm::vec3(0.0f, 0.3f, 0.0f));
+        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // base alignment
+        model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));
         model = glm::scale(model, glm::vec3(1.0f, 0.25f, 0.5f));
 
         glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
@@ -351,15 +428,30 @@ int main() {
 
         for (int i = 0; i < 4; ++i) {
             model = glm::mat4(1.0f);
+
+            // First move to the cart's position
+            model = glm::translate(model, cartPos + glm::vec3(0.0f, 0.0f, 0.0f));
+
+
+            // Align base orientation (cart model points sideways by default)
+            model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f)); // base alignment
+            model = glm::rotate(model, wheelRotation, glm::vec3(0.0f, 0.0f, 1.0f));
+            model = glm::rotate(model, angle, glm::vec3(0.0f, 1.0f, 0.0f));               // face direction of motion
+
+            // Apply wheel's local offset in cart's local space
             model = glm::translate(model, wheelPositions[i]);
+
+            // Rotate wheel to lie flat (if it's a cylinder on its side)
             model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+
             glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
             glDrawArrays(GL_TRIANGLE_STRIP, 0, cylinderVertexCount);
         }
 
 
         drawRail(leftRailPath, shaderProgram, railVAO, modelLoc);
-		drawRail(rightRailPath, shaderProgram, railVAO, modelLoc);
+        drawRail(rightRailPath, shaderProgram, railVAO, modelLoc);
+		drawMidRail(centerRail, 0.25f, shaderProgram, railVAO, modelLoc);
 
         drawCurvedTies(tiesCurved, shaderProgram, railVAO, modelLoc);
         drawStraightTies(tiesStraight, shaderProgram, railVAO, modelLoc);
@@ -382,33 +474,33 @@ void processInput(GLFWwindow* window) {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
     else if (glfwGetKey(window, GLFW_KEY_W) == GLFW_PRESS)
-		camera.processKeyboardInput(FORWARD, deltaTime);
+        camera.processKeyboardInput(FORWARD, deltaTime);
     else if (glfwGetKey(window, GLFW_KEY_S) == GLFW_PRESS)
-		camera.processKeyboardInput(BACKWARD, deltaTime);
+        camera.processKeyboardInput(BACKWARD, deltaTime);
     else if (glfwGetKey(window, GLFW_KEY_A) == GLFW_PRESS)
-		camera.processKeyboardInput(LEFT, deltaTime);
+        camera.processKeyboardInput(LEFT, deltaTime);
     else if (glfwGetKey(window, GLFW_KEY_D) == GLFW_PRESS)
-		camera.processKeyboardInput(RIGHT, deltaTime);
+        camera.processKeyboardInput(RIGHT, deltaTime);
     else if (glfwGetKey(window, GLFW_KEY_SPACE) == GLFW_PRESS)
-		camera.processKeyboardInput(UP, deltaTime);
+        camera.processKeyboardInput(UP, deltaTime);
     else if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
-		camera.processKeyboardInput(DOWN, deltaTime);
+        camera.processKeyboardInput(DOWN, deltaTime);
 }
 
 void processMouseInput(GLFWwindow* window, double x, double y) {
-	if (firstMouse) {
-		lastX = static_cast<float>(x);
-		lastY = static_cast<float>(y);
-		firstMouse = false;
-	}
+    if (firstMouse) {
+        lastX = static_cast<float>(x);
+        lastY = static_cast<float>(y);
+        firstMouse = false;
+    }
 
-	float xOffset = static_cast<float>(x) - lastX;
-	float yOffset = lastY - static_cast<float>(y);
+    float xOffset = static_cast<float>(x) - lastX;
+    float yOffset = lastY - static_cast<float>(y);
 
-	lastX = static_cast<float>(x);
-	lastY = static_cast<float>(y);
+    lastX = static_cast<float>(x);
+    lastY = static_cast<float>(y);
 
-	camera.processMouseInput(xOffset, yOffset);
+    camera.processMouseInput(xOffset, yOffset);
 }
 
 int generateCylinder(int segments, unsigned int& vertexCount) {
@@ -578,3 +670,124 @@ void drawStraightTies(const std::vector<glm::vec3>& tiePositions, unsigned int s
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 }
+
+glm::vec3 calculateMidpoint() {
+    float minX = std::numeric_limits<float>::max();
+    float minY = std::numeric_limits<float>::max();
+    float minZ = std::numeric_limits<float>::max();
+
+    float maxX = std::numeric_limits<float>::lowest();
+    float maxY = std::numeric_limits<float>::lowest();
+    float maxZ = std::numeric_limits<float>::lowest();
+
+    for (int i = 0; i < sizeof(cubeVertices) / sizeof(float); i += 3) {
+        float x = cubeVertices[i];
+        float y = cubeVertices[i + 1];
+        float z = cubeVertices[i + 2];
+
+        minX = std::min(minX, x);
+        minY = std::min(minY, y);
+        minZ = std::min(minZ, z);
+
+        maxX = std::max(maxX, x);
+        maxY = std::max(maxY, y);
+        maxZ = std::max(maxZ, z);
+    }
+
+    float midX = (minX + maxX) / 2.0f;
+    float midY = (minY + maxY) / 2.0f;
+    float midZ = (minZ + maxZ) / 2.0f;
+
+	std::cout << "Midpoint: (" << midX << ", " << midY << ", " << midZ << ")\n";
+
+    return {midX, midY, midZ};
+}
+
+std::vector<glm::vec3> calculateCenterRail(const std::vector<glm::vec3>& leftRail, const std::vector<glm::vec3>& rightRail) {
+    std::vector<glm::vec3> centerRail;
+
+    // Ensure both rails have the same number of points
+    if (leftRail.size() != rightRail.size()) {
+        std::cerr << "Error: Rail vectors must be the same size.\n";
+        return centerRail;
+    }
+
+    for (size_t i = 0; i < leftRail.size(); ++i) {
+        glm::vec3 midpoint = (leftRail[i] + rightRail[i]) * 0.5f;
+        centerRail.push_back(midpoint);
+    }
+
+    return centerRail;
+}
+
+int findClosestXZIndex(const glm::vec3& centerPoint, const std::vector<glm::vec3>& centerRail) {
+    if (centerRail.empty()) {
+        std::cerr << "Center rail is empty.\n";
+        return -1; // Indicate invalid index
+    }
+
+    float minDistSq = std::numeric_limits<float>::max();
+    int closestIndex = -1;
+
+    for (size_t i = 0; i < centerRail.size(); ++i) {
+        float dx = centerRail[i].x - centerPoint.x;
+        float dz = centerRail[i].z - centerPoint.z;
+        float distSq = dx * dx + dz * dz;
+
+        if (distSq < minDistSq) {
+            minDistSq = distSq;
+            closestIndex = static_cast<int>(i);
+        }
+    }
+
+    return closestIndex;
+}
+
+std::vector<glm::vec3> generateBezierHill(glm::vec3 start, glm::vec3 direction, float segmentLength, int numSegments, float hillHeight) {
+    std::vector<glm::vec3> hillPath;
+
+    glm::vec3 p0 = start;
+    glm::vec3 p3 = start + direction * segmentLength;
+
+    glm::vec3 up(0.0f, hillHeight, 0.0f);
+
+    glm::vec3 p1 = p0 + direction * (segmentLength / 3.0f) + up;
+    glm::vec3 p2 = p0 + direction * (2.0f * segmentLength / 3.0f) + up;
+
+    for (int i = 0; i < numSegments; ++i) {
+        float t = (float)i / (float)(numSegments - 1);
+
+        glm::vec3 point =
+            static_cast<float>(std::pow(1 - t, 3)) * p0 +
+            3.0f * static_cast<float>(std::pow(1 - t, 2)) * t * p1 +
+            3.0f * (1 - t) * static_cast<float>(std::pow(t, 2)) * p2 +
+            static_cast<float>(std::pow(t, 3)) * p3;
+
+        hillPath.push_back(point);
+    }
+
+    return hillPath;
+}
+
+void drawMidRail(const std::vector<glm::vec3>& path, float y, unsigned int shaderProgram, unsigned int VAO, int modelLoc) {
+    for (size_t i = 0; i < path.size() - 1; ++i) {
+        glm::vec3 p0 = path[i];
+        glm::vec3 p1 = path[i + 1];
+        glm::vec3 direction = glm::normalize(p1 - p0);
+        float length = glm::distance(p0, p1);
+
+        glm::mat4 model = glm::mat4(1.0f);
+        glm::vec3 midpoint = (p0 + p1) / 2.0f;
+        midpoint.y += y;  // <-- Offset the Y position
+        model = glm::translate(model, midpoint);
+
+        float angle = atan2(direction.z, direction.x);
+        model = glm::rotate(model, -angle, glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(length, 0.05f, 0.05f));
+
+        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        glBindVertexArray(VAO);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+}
+
