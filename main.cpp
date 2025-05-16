@@ -10,51 +10,25 @@
 #include <glm/gtx/rotate_vector.hpp>µ
 #include <cmath>
 #include <glm/gtx/quaternion.hpp>
+#include <shader.h>
+#include <stb_image.h>
 
 void framebuffer_size_callback(GLFWwindow * window, int width, int height);
 void processInput(GLFWwindow* window);
 void processMouseInput(GLFWwindow* window, double x, double y);
-void drawRail(const std::vector<glm::vec3>& path, unsigned int shaderProgram, unsigned int VAO, int modelLoc);
-void drawCurvedTies(const std::vector<glm::vec3>& ties, unsigned int shaderProgram, unsigned int VAO, int modelLoc);
-void drawStraightTies(const std::vector<glm::vec3>& ties, unsigned int shaderProgram, unsigned int VAO, int modelLoc);
+void drawRail(const std::vector<glm::vec3>& path, const Shader& shader, unsigned int VAO);
+void drawCurvedTies(const std::vector<glm::vec3>& tiePositions, const Shader& shader, unsigned int VAO);
+void drawStraightTies(const std::vector<glm::vec3>& tiePositions, const Shader& shader, unsigned int VAO);
 int generateCylinder(int segments, unsigned int& vertexCount);
 void generateTiesBetweenCurvedRails(const std::vector<glm::vec3>& leftRailPath, const std::vector<glm::vec3>& rightRailPath, std::vector<glm::vec3>& ties);
 void generateTiesBetweenStraightRails(const std::vector<std::pair<glm::vec3, glm::vec3>>& leftSegments, const std::vector<std::pair<glm::vec3, glm::vec3>>& rightSegments, std::vector<glm::vec3>& ties, int numTies);
+void generateTiesBetweenBezierRails(const std::vector<glm::vec3>& leftRailPath, const std::vector<glm::vec3>& rightRailPath, std::vector<glm::vec3>& tiePositions);
 std::vector<glm::vec3> generateCurvedRailAroundCenter(glm::vec3 center, float radius, float startAngle, float angle, int numSegments, float offsetDistance);
 glm::vec3 calculateMidpoint();
 std::vector<glm::vec3> calculateCenterRail(const std::vector<glm::vec3>& leftRail, const std::vector<glm::vec3>& rightRail);
 int findClosestXZIndex(const glm::vec3& centerPoint, const std::vector<glm::vec3>& centerRail);
 std::vector<glm::vec3> generateBezierHill(glm::vec3 start, glm::vec3 direction, float segmentLength, int numSegments, float hillHeight);
-void drawMidRail(const std::vector<glm::vec3>& path, float y, unsigned int shaderProgram, unsigned int VAO, int modelLoc);
-
-// Shaders
-const char* vertexCameraShaderSource = R"(
-    #version 330 core
-    layout (location = 0) in vec3 aPos;
-    layout (location = 1) in vec2 aTexCoord;
-
-    out vec2 TexCoord;
-
-    uniform mat4 model;
-    uniform mat4 view;
-    uniform mat4 projection;
-
-    void main()
-    {
-        gl_Position = projection * view * model * vec4(aPos, 1.0f);
-        TexCoord = vec2(aTexCoord.x, aTexCoord.y);
-    }
-)";
-
-const char* fragmentCameraShaderSource = R"(
-    #version 330 core
-    out vec4 FragColor;
-
-    void main()
-    {
-	    FragColor = vec4(1.0, 0.5, 0.2, 1.0);
-    }
-)";
+void drawMidRail(const std::vector<glm::vec3>& path, float y, const Shader& shader, unsigned int VAO);
 
 // Window
 float deltaTime = 0.0f;
@@ -80,105 +54,164 @@ glm::vec3 wheelPositions[4] = {
 
 // Body
 float cubeVertices[] = {
-     -0.5f, -0.5f, -0.5f,
-     0.5f, -0.5f, -0.5f,
-     0.5f,  0.5f, -0.5f,
-     0.5f,  0.5f, -0.5f,
-     -0.5f,  0.5f, -0.5f,
-     -0.5f, -0.5f, -0.5f,
+    // positions          // tex coords
+    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
+     0.5f, -0.5f, -0.5f,  1.0f, 0.0f,
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 0.0f,
 
-     -0.5f, -0.5f,  0.5f,
-     0.5f, -0.5f,  0.5f,
-     0.5f,  0.5f,  0.5f,
-     0.5f,  0.5f,  0.5f,
-     -0.5f,  0.5f,  0.5f,
-     -0.5f, -0.5f,  0.5f,
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+     0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 1.0f,
+    -0.5f,  0.5f,  0.5f,  0.0f, 1.0f,
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
 
-     -0.5f,  0.5f,  0.5f,
-     -0.5f,  0.5f, -0.5f,
-     -0.5f, -0.5f, -0.5f,
-     -0.5f, -0.5f, -0.5f,
-     -0.5f, -0.5f,  0.5f,
-     -0.5f,  0.5f,  0.5f,
+    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+    -0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+    -0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+    -0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+    -0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
 
-     0.5f,  0.5f,  0.5f,
-     0.5f,  0.5f, -0.5f,
-     0.5f, -0.5f, -0.5f,
-     0.5f, -0.5f, -0.5f,
-     0.5f, -0.5f,  0.5f,
-     0.5f,  0.5f,  0.5f,
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+     0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+     0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+     0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
 
-     -0.5f, -0.5f, -0.5f,
-     0.5f, -0.5f, -0.5f,
-     0.5f, -0.5f,  0.5f,
-     0.5f, -0.5f,  0.5f,
-     -0.5f, -0.5f,  0.5f,
-     -0.5f, -0.5f, -0.5f,
+    //-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
+    // 0.5f, -0.5f, -0.5f,  1.0f, 1.0f,
+    // 0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+    // 0.5f, -0.5f,  0.5f,  1.0f, 0.0f,
+    //-0.5f, -0.5f,  0.5f,  0.0f, 0.0f,
+    //-0.5f, -0.5f, -0.5f,  0.0f, 1.0f,
 
-     -0.5f,  0.5f, -0.5f,
-     0.5f,  0.5f, -0.5f,
-     0.5f,  0.5f,  0.5f,
-     0.5f,  0.5f,  0.5f,
-     -0.5f,  0.5f,  0.5f,
-     -0.5f,  0.5f, -0.5f
+    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f,
+     0.5f,  0.5f, -0.5f,  1.0f, 1.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+     0.5f,  0.5f,  0.5f,  1.0f, 0.0f,
+    -0.5f,  0.5f,  0.5f,  0.0f, 0.0f,
+    -0.5f,  0.5f, -0.5f,  0.0f, 1.0f
 };
 
+
 // Rail
-float segmentLength = 2.0f;
+float segmentLength = 5.0f;
 int segmentsPerSide = 3;
 int totalStraightSegments = segmentsPerSide * 4;
 float railSpacing = 0.4f;
 float cornerRadius = 1.0f;
 
 float railVertices[] = {
-    -0.5f, -0.5f,  0.5f,
-     0.5f, -0.5f,  0.5f,
-     0.5f,  0.5f,  0.5f,
+	-0.5f, -0.5f,  0.5f, 0.0f, 0.0f,
+	 0.5f, -0.5f,  0.5f, 1.0f, 0.0f,
+	 0.5f,  0.5f,  0.5f, 1.0f, 1.0f,
 
-     0.5f,  0.5f,  0.5f,
-    -0.5f,  0.5f,  0.5f,
-    -0.5f, -0.5f,  0.5f,
+	 0.5f,  0.5f,  0.5f, 1.0f, 1.0f,
+	-0.5f,  0.5f,  0.5f, 0.0f, 1.0f,
+	-0.5f, -0.5f,  0.5f, 0.0f, 0.0f,
 
-    -0.5f, -0.5f, -0.5f,
-    -0.5f,  0.5f, -0.5f,
-     0.5f,  0.5f, -0.5f,
+    -0.5f, -0.5f, -0.5f, 0.0f, 0.0f,
+	-0.5f,  0.5f, -0.5f, 0.0f, 1.0f,
+	 0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
 
-     0.5f,  0.5f, -0.5f,
-     0.5f, -0.5f, -0.5f,
-    -0.5f, -0.5f, -0.5f,
+	 0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
+	 0.5f, -0.5f, -0.5f, 1.0f, 0.0f,
+	-0.5f, -0.5f, -0.5f, 0.0f, 0.0f,
 
-    -0.5f, -0.5f, -0.5f,
-    -0.5f, -0.5f,  0.5f,
-    -0.5f,  0.5f,  0.5f,
+	-0.5f, -0.5f, -0.5f, 1.0f, 0.0f,
+    -0.5f, -0.5f,  0.5f, 0.0f, 1.0f,
+	-0.5f,  0.5f,  0.5f, 0.0f, 1.0f,
 
-    -0.5f,  0.5f,  0.5f,
-    -0.5f,  0.5f, -0.5f,
-    -0.5f, -0.5f, -0.5f,
+	-0.5f,  0.5f,  0.5f, 0.0f, 1.0f,
+	-0.5f,  0.5f, -0.5f, 0.0f, 0.0f,
+	-0.5f, -0.5f, -0.5f, 1.0f, 0.0f,
 
-    0.5f, -0.5f, -0.5f,
-    0.5f,  0.5f, -0.5f,
-    0.5f,  0.5f,  0.5f,
+	0.5f, -0.5f, -0.5f, 1.0f, 0.0f,
+	0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
+	0.5f,  0.5f,  0.5f, 1.0f, 1.0f,
 
-    0.5f,  0.5f,  0.5f,
-    0.5f, -0.5f,  0.5f,
-    0.5f, -0.5f, -0.5f,
+	0.5f,  0.5f,  0.5f, 1.0f, 1.0f,
+	0.5f, -0.5f,  0.5f, 1.0f, 0.0f,
+	0.5f, -0.5f, -0.5f, 1.0f, 0.0f,
 
-    -0.5f,  0.5f, -0.5f,
-    -0.5f,  0.5f,  0.5f,
-    0.5f,  0.5f,  0.5f,
+	-0.5f,  0.5f, -0.5f, 0.0f, 1.0f,
+	-0.5f,  0.5f,  0.5f, 0.0f, 0.0f,
+	0.5f,  0.5f,  0.5f, 1.0f, 0.0f,
 
-    0.5f,  0.5f,  0.5f,
-    0.5f,  0.5f, -0.5f,
-    -0.5f,  0.5f, -0.5f,
+	0.5f,  0.5f,  0.5f, 1.0f, 0.0f,
+	0.5f,  0.5f, -0.5f, 1.0f, 1.0f,
+	-0.5f,  0.5f, -0.5f, 0.0f, 1.0f,
 
-    -0.5f, -0.5f, -0.5f,
-    0.5f, -0.5f, -0.5f,
-    0.5f, -0.5f,  0.5f,
+    -0.5f, -0.5f, -0.5f, 0.0f, 0.0f,
+	0.5f, -0.5f, -0.5f, 1.0f, 0.0f,
+	0.5f, -0.5f,  0.5f, 1.0f, 1.0f,
 
-    0.5f, -0.5f,  0.5f,
-    -0.5f, -0.5f,  0.5f,
-    -0.5f, -0.5f, -0.5f
+	0.5f, -0.5f,  0.5f, 1.0f, 1.0f,
+	-0.5f, -0.5f,  0.5f, 0.0f, 1.0f,
+	-0.5f, -0.5f, -0.5f, 0.0f, 0.0f
 };
+
+float tiesVertices[] = {
+    // Front face
+    -0.5f, -0.05f,  0.5f, 0.0f, 0.0f,
+     0.5f, -0.05f,  0.5f, 1.0f, 0.0f,
+     0.5f,  0.05f,  0.5f, 1.0f, 1.0f,
+
+     0.5f,  0.05f,  0.5f, 1.0f, 1.0f,
+    -0.5f,  0.05f,  0.5f, 0.0f, 1.0f,
+    -0.5f, -0.05f,  0.5f, 0.0f, 0.0f,
+
+    // Back face
+    -0.5f, -0.05f, -0.5f, 0.0f, 0.0f,
+    -0.5f,  0.05f, -0.5f, 0.0f, 1.0f,
+     0.5f,  0.05f, -0.5f, 1.0f, 1.0f,
+
+     0.5f,  0.05f, -0.5f, 1.0f, 1.0f,
+     0.5f, -0.05f, -0.5f, 1.0f, 0.0f,
+    -0.5f, -0.05f, -0.5f, 0.0f, 0.0f,
+
+    // Left face
+    -0.5f, -0.05f, -0.5f, 1.0f, 0.0f,
+    -0.5f, -0.05f,  0.5f, 0.0f, 1.0f,
+    -0.5f,  0.05f,  0.5f, 0.0f, 1.0f,
+
+    -0.5f,  0.05f,  0.5f, 0.0f, 1.0f,
+    -0.5f,  0.05f, -0.5f, 0.0f, 0.0f,
+    -0.5f, -0.05f, -0.5f, 1.0f, 0.0f,
+
+    // Right face
+     0.5f, -0.05f, -0.5f, 1.0f, 0.0f,
+     0.5f,  0.05f, -0.5f, 1.0f, 1.0f,
+     0.5f,  0.05f,  0.5f, 1.0f, 1.0f,
+
+     0.5f,  0.05f,  0.5f, 1.0f, 1.0f,
+     0.5f, -0.05f,  0.5f, 1.0f, 0.0f,
+     0.5f, -0.05f, -0.5f, 1.0f, 0.0f,
+
+     // Top face
+     -0.5f,  0.05f, -0.5f, 0.0f, 1.0f,
+     -0.5f,  0.05f,  0.5f, 0.0f, 0.0f,
+      0.5f,  0.05f,  0.5f, 1.0f, 0.0f,
+
+      0.5f,  0.05f,  0.5f, 1.0f, 0.0f,
+      0.5f,  0.05f, -0.5f, 1.0f, 1.0f,
+     -0.5f,  0.05f, -0.5f, 0.0f, 1.0f,
+
+     // Bottom face
+     -0.5f, -0.05f, -0.5f, 0.0f, 0.0f,
+      0.5f, -0.05f, -0.5f, 1.0f, 0.0f,
+      0.5f, -0.05f,  0.5f, 1.0f, 1.0f,
+
+      0.5f, -0.05f,  0.5f, 1.0f, 1.0f,
+     -0.5f, -0.05f,  0.5f, 0.0f, 1.0f,
+     -0.5f, -0.05f, -0.5f, 0.0f, 0.0f
+};
+
 
 int main() {
     // Window Setup
@@ -208,22 +241,8 @@ int main() {
         return -1;
     }
 
-    // Shader Setup
-    unsigned int vertexShader = glCreateShader(GL_VERTEX_SHADER);
-    glShaderSource(vertexShader, 1, &vertexCameraShaderSource, NULL);
-    glCompileShader(vertexShader);
-
-    unsigned int fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-    glShaderSource(fragmentShader, 1, &fragmentCameraShaderSource, NULL);
-    glCompileShader(fragmentShader);
-
-    unsigned int shaderProgram = glCreateProgram();
-    glAttachShader(shaderProgram, vertexShader);
-    glAttachShader(shaderProgram, fragmentShader);
-    glLinkProgram(shaderProgram);
-
-    glDeleteShader(vertexShader);
-    glDeleteShader(fragmentShader);
+    // Shaders
+    Shader shader("shaders/shader.vs", "shaders/shader.frag");
 
     // Vertex Array Object and Buffer Object Setup
     unsigned int VAO, VBO;
@@ -234,11 +253,16 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(cubeVertices), cubeVertices, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    // position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
 
+    // texture coord attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
     unsigned int cylinderVertexCount;
-    unsigned int cylinderVAO = generateCylinder(30, cylinderVertexCount);
+    unsigned int cylinderVAO = generateCylinder(10, cylinderVertexCount);
 
     unsigned int railVAO, railVBO;
     glGenVertexArrays(1, &railVAO);
@@ -248,8 +272,97 @@ int main() {
     glBindBuffer(GL_ARRAY_BUFFER, railVBO);
     glBufferData(GL_ARRAY_BUFFER, sizeof(railVertices), railVertices, GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+	unsigned int tiesVAO, tiesVBO;
+	glGenVertexArrays(1, &tiesVAO);
+	glGenBuffers(1, &tiesVBO);
+
+	glBindVertexArray(tiesVAO);
+	glBindBuffer(GL_ARRAY_BUFFER, tiesVBO);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(tiesVertices), tiesVertices, GL_STATIC_DRAW);
+
+	glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
+	glEnableVertexAttribArray(0);
+
+	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
+	// Texture Setup
+    unsigned int texture, texture2, texture3;
+    glGenTextures(1, &texture);
+    glBindTexture(GL_TEXTURE_2D, texture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    int width, height, nrChannels;
+
+    unsigned char* data = stbi_load("assets/container.jpg", &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load texture" << std::endl;
+    }
+    stbi_image_free(data);
+
+    glGenTextures(1, &texture2);
+    glBindTexture(GL_TEXTURE_2D, texture2);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    data = stbi_load("assets/rails.jpg", &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load texture" << std::endl;
+    }
+    stbi_image_free(data);
+
+    glGenTextures(1, &texture3);
+    glBindTexture(GL_TEXTURE_2D, texture3);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    data = stbi_load("assets/rails.jpg", &width, &height, &nrChannels, 0);
+    if (data)
+    {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
+    else
+    {
+        std::cout << "Failed to load texture" << std::endl;
+    }
+    stbi_image_free(data);
+
+	shader.use();
+	glUniform1i(glGetUniformLocation(shader.ID, "texture1"), 0);
+	shader.setInt("texture2", 1);
+	shader.setInt("texture3", 2);
 
     glEnable(GL_DEPTH_TEST);
 
@@ -258,6 +371,8 @@ int main() {
     std::vector<glm::vec3> rightRailPath;
     std::vector<glm::vec3> leftCurvedRailPath;
     std::vector<glm::vec3> rightCurvedRailPath;
+	std::vector<glm::vec3> leftBezierRailPath;
+	std::vector<glm::vec3> rightBezierRailPath;
     std::vector<std::pair<glm::vec3, glm::vec3>> leftStraightSegments;
     std::vector<std::pair<glm::vec3, glm::vec3>> rightStraightSegments;
 
@@ -274,25 +389,6 @@ int main() {
         for (int i = 0; i < segmentsPerSide; ++i) {
 			// Bezier Hill
             if (i == 1) {
-                glm::vec3 leftStart = position + leftOffset;
-                glm::vec3 rightStart = position + rightOffset;
-
-                glm::vec3 leftEnd = leftStart + direction * segmentLength;
-                glm::vec3 rightEnd = rightStart + direction * segmentLength;
-
-                leftRailPath.push_back(leftStart);
-                leftRailPath.push_back(leftEnd);
-
-                rightRailPath.push_back(rightStart);
-                rightRailPath.push_back(rightEnd);
-
-                leftStraightSegments.push_back({ leftStart, leftEnd });
-                rightStraightSegments.push_back({ rightStart, rightEnd });
-
-                position += direction * segmentLength;
-            }
-            // Straight
-            else {
                 std::vector<glm::vec3> leftHill = generateBezierHill(position + leftOffset, direction, segmentLength, 500, 0.5f);
                 std::vector<glm::vec3> rightHill = generateBezierHill(position + rightOffset, direction, segmentLength, 500, 0.5f);
 
@@ -307,9 +403,30 @@ int main() {
                     rightRailPath.push_back(r0);
                     rightRailPath.push_back(r1);
 
-                    leftStraightSegments.push_back({ l0, l1 });
-                    rightStraightSegments.push_back({ r0, r1 });
+					leftBezierRailPath.push_back(l0);
+					leftBezierRailPath.push_back(l1);
+					rightBezierRailPath.push_back(r0);
+					rightBezierRailPath.push_back(r1);
                 }
+
+                position += direction * segmentLength;
+            }
+            // Straight
+            else {
+                glm::vec3 leftStart = position + leftOffset;
+                glm::vec3 rightStart = position + rightOffset;
+
+                glm::vec3 leftEnd = leftStart + direction * segmentLength;
+                glm::vec3 rightEnd = rightStart + direction * segmentLength;
+
+                leftRailPath.push_back(leftStart);
+                leftRailPath.push_back(leftEnd);
+
+                rightRailPath.push_back(rightStart);
+                rightRailPath.push_back(rightEnd);
+
+                leftStraightSegments.push_back({ leftStart, leftEnd });
+                rightStraightSegments.push_back({ rightStart, rightEnd });
 
                 position += direction * segmentLength;
             }
@@ -338,8 +455,12 @@ int main() {
     generateTiesBetweenCurvedRails(leftCurvedRailPath, rightCurvedRailPath, tiesCurved);
 
     std::vector<glm::vec3> tiesStraight;
-    generateTiesBetweenStraightRails(leftStraightSegments, rightStraightSegments, tiesStraight, 5);
+    generateTiesBetweenStraightRails(leftStraightSegments, rightStraightSegments, tiesStraight, 10);
 
+	std::vector<glm::vec3> tiesBezier;
+	generateTiesBetweenBezierRails(leftBezierRailPath, rightBezierRailPath, tiesBezier);
+
+    // Pre-setup animation
     glm::vec3 cartPosition = calculateMidpoint();
 	std::vector<glm::vec3> centerRail = calculateCenterRail(leftRailPath, rightRailPath);
 	for (int i = 0; i < centerRail.size(); ++i) {
@@ -382,23 +503,20 @@ int main() {
         glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-        glUseProgram(shaderProgram);
+        glBindTexture(GL_TEXTURE_2D, texture);
+
+        shader.use();
         glBindVertexArray(VAO);
 
-        int modelLoc = glGetUniformLocation(shaderProgram, "model");
-        int viewLoc = glGetUniformLocation(shaderProgram, "view");
-        int projLoc = glGetUniformLocation(shaderProgram, "projection");
+
+        //Camera
+        glm::mat4 model = glm::mat4(1.0f);
+        shader.setMat4("model", model);
+		shader.setMat4("view", camera.viewMatrix());
+		shader.setMat4("projection", glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f));
 
         glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -5.0f));
         glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(view));
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projection));
-
-        // Camera
-        glm::mat4 projectionCamera = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
-        glm::mat4 viewCamera = camera.viewMatrix();
-        glUniformMatrix4fv(viewLoc, 1, GL_FALSE, glm::value_ptr(viewCamera));
-        glUniformMatrix4fv(projLoc, 1, GL_FALSE, glm::value_ptr(projectionCamera));
 
 		// Cart
         glm::vec3 from = centerRail[index];
@@ -420,35 +538,43 @@ int main() {
         rotationMatrix[2] = glm::vec4(zAxis, 0.0f);
 
         // Body
-        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::mat4(1.0f);
         model = glm::translate(model, cartPos + glm::vec3(0.0f, 0.3f, 0.0f));
         model *= rotationMatrix;
         model = glm::scale(model, glm::vec3(1.0f, 0.25f, 0.5f));
+        shader.setMat4("model", model);
 
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 36);
 
         // Wheels
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture3);
+
         glBindVertexArray(cylinderVAO);
         for (int i = 0; i < 4; ++i) {
-            model = glm::mat4(1.0f);
+            glm::mat4 model = glm::mat4(1.0f);
             model = glm::translate(model, cartPos + glm::vec3(0.0f, 0.2f, 0.0f));
             model *= rotationMatrix;
             model = glm::translate(model, wheelPositions[i]);
             model = glm::rotate(model, wheelRotation, glm::vec3(0.0f, 0.0f, 1.0f));
             model = glm::rotate(model, glm::radians(90.0f), glm::vec3(1.0f, 0.0f, 0.0f));
+            shader.setMat4("model", model);
 
-            glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
             glDrawArrays(GL_TRIANGLE_STRIP, 0, cylinderVertexCount);
         }
 
-        drawRail(leftRailPath, shaderProgram, railVAO, modelLoc);
-        drawRail(rightRailPath, shaderProgram, railVAO, modelLoc);
-		drawMidRail(centerRail, 0.25f, shaderProgram, railVAO, modelLoc);
 
-        drawCurvedTies(tiesCurved, shaderProgram, railVAO, modelLoc);
-        drawStraightTies(tiesStraight, shaderProgram, railVAO, modelLoc);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, texture2);
+
+        drawRail(leftRailPath, shader, railVAO);
+        drawRail(rightRailPath, shader, railVAO);
+		drawMidRail(centerRail, 0.25f, shader, railVAO);
+
+        drawCurvedTies(tiesCurved, shader, tiesVAO);
+        drawStraightTies(tiesStraight, shader, tiesVAO);
+		drawCurvedTies(tiesBezier, shader, tiesVAO);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -506,17 +632,24 @@ int generateCylinder(int segments, unsigned int& vertexCount) {
         float angle = 2.0f * glm::pi<float>() * i / segments;
         float x = cos(angle) * radius;
         float z = sin(angle) * radius;
+        float u = static_cast<float>(i) / segments; // u from 0 to 1
 
+        // Top vertex
         vertices.push_back(x);
         vertices.push_back(height / 2.0f);
         vertices.push_back(z);
+        vertices.push_back(u);
+        vertices.push_back(0.0f); // v = 0 for top
 
+        // Bottom vertex
         vertices.push_back(x);
         vertices.push_back(-height / 2.0f);
         vertices.push_back(z);
+        vertices.push_back(u);
+        vertices.push_back(1.0f); // v = 1 for bottom
     }
 
-    vertexCount = static_cast<unsigned int>(vertices.size() / 3);
+    vertexCount = static_cast<unsigned int>(vertices.size() / 5);
 
     unsigned int VAO, VBO;
     glGenVertexArrays(1, &VAO);
@@ -526,13 +659,19 @@ int generateCylinder(int segments, unsigned int& vertexCount) {
     glBindBuffer(GL_ARRAY_BUFFER, VBO);
     glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(float), vertices.data(), GL_STATIC_DRAW);
 
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), (void*)0);
+    // Position attribute
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)0);
     glEnableVertexAttribArray(0);
+
+    // Texture coordinate attribute
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
 
     glBindVertexArray(0);
 
     return VAO;
 }
+
 
 std::vector<glm::vec3> generateCurvedRailAroundCenter(glm::vec3 center, float radius, float startAngle, float angle, int numSegments, float offsetDistance) {
     std::vector<glm::vec3> railPath;
@@ -563,11 +702,7 @@ void generateTiesBetweenCurvedRails(const std::vector<glm::vec3>& leftRailPath, 
     }
 }
 
-void generateTiesBetweenStraightRails(
-    const std::vector<std::pair<glm::vec3, glm::vec3>>& leftSegments,
-    const std::vector<std::pair<glm::vec3, glm::vec3>>& rightSegments,
-    std::vector<glm::vec3>& ties, int numTies) {
-
+void generateTiesBetweenStraightRails(const std::vector<std::pair<glm::vec3, glm::vec3>>& leftSegments, const std::vector<std::pair<glm::vec3, glm::vec3>>& rightSegments, std::vector<glm::vec3>& ties, int numTies) {
     for (size_t i = 0; i < leftSegments.size(); ++i) {
         glm::vec3 leftStart = leftSegments[i].first;
         glm::vec3 leftEnd = leftSegments[i].second;
@@ -588,7 +723,17 @@ void generateTiesBetweenStraightRails(
     }
 }
 
-void drawRail(const std::vector<glm::vec3>& path, unsigned int shaderProgram, unsigned int VAO, int modelLoc) {
+void generateTiesBetweenBezierRails(const std::vector<glm::vec3>& leftRailPath, const std::vector<glm::vec3>& rightRailPath, std::vector<glm::vec3>& tiePositions) {
+    for (size_t i = 2; i < leftRailPath.size(); i+= 10) {
+        glm::vec3 left = leftRailPath[i];
+        glm::vec3 right = rightRailPath[i];
+
+        tiePositions.push_back(left);
+        tiePositions.push_back(right);
+    }
+}
+
+void drawRail(const std::vector<glm::vec3>& path, const Shader& shader, unsigned int VAO) {
     for (size_t i = 0; i < path.size() - 1; ++i) {
         glm::vec3 p0 = path[i];
         glm::vec3 p1 = path[i + 1];
@@ -603,13 +748,14 @@ void drawRail(const std::vector<glm::vec3>& path, unsigned int shaderProgram, un
         model = glm::rotate(model, -angle, glm::vec3(0.0f, 1.0f, 0.0f));
         model = glm::scale(model, glm::vec3(length, 0.05f, 0.05f));
 
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        shader.setMat4("model", model);
+
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 }
 
-void drawCurvedTies(const std::vector<glm::vec3>& tiePositions, unsigned int shaderProgram, unsigned int VAO, int modelLoc) {
+void drawCurvedTies(const std::vector<glm::vec3>& tiePositions, const Shader& shader, unsigned int VAO) {
     for (size_t i = 0; i < tiePositions.size(); i += 10) {
         glm::vec3 left = tiePositions[i];
         glm::vec3 right = tiePositions[i + 1];
@@ -630,14 +776,14 @@ void drawCurvedTies(const std::vector<glm::vec3>& tiePositions, unsigned int sha
         model = model * rotationMatrix;
         model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         model = glm::scale(model, glm::vec3(0.2f, 0.05f, glm::length(tieDirection)));
+        shader.setMat4("model", model);
 
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 }
 
-void drawStraightTies(const std::vector<glm::vec3>& tiePositions, unsigned int shaderProgram, unsigned int VAO, int modelLoc) {
+void drawStraightTies(const std::vector<glm::vec3>& tiePositions, const Shader& shader, unsigned int VAO) {
     for (size_t i = 0; i + 1 < tiePositions.size(); i += 2) {
         glm::vec3 left = tiePositions[i];
         glm::vec3 right = tiePositions[i + 1];
@@ -659,7 +805,8 @@ void drawStraightTies(const std::vector<glm::vec3>& tiePositions, unsigned int s
         model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
         model = glm::scale(model, glm::vec3(0.2f, 0.05f, glm::length(tieDirection)));
 
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        shader.setMat4("model", model);
+
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
@@ -757,7 +904,7 @@ std::vector<glm::vec3> generateBezierHill(glm::vec3 start, glm::vec3 direction, 
     return hillPath;
 }
 
-void drawMidRail(const std::vector<glm::vec3>& path, float y, unsigned int shaderProgram, unsigned int VAO, int modelLoc) {
+void drawMidRail(const std::vector<glm::vec3>& path, float y, const Shader& shader, unsigned int VAO) {
     for (size_t i = 0; i < path.size() - 1; ++i) {
         glm::vec3 p0 = path[i];
         glm::vec3 p1 = path[i + 1];
@@ -766,14 +913,15 @@ void drawMidRail(const std::vector<glm::vec3>& path, float y, unsigned int shade
 
         glm::mat4 model = glm::mat4(1.0f);
         glm::vec3 midpoint = (p0 + p1) / 2.0f;
-        midpoint.y += y;  // <-- Offset the Y position
+        //midpoint.y += y;  // <-- Offset the Y position
         model = glm::translate(model, midpoint);
 
         float angle = atan2(direction.z, direction.x);
         model = glm::rotate(model, -angle, glm::vec3(0.0f, 1.0f, 0.0f));
         model = glm::scale(model, glm::vec3(length, 0.05f, 0.05f));
 
-        glUniformMatrix4fv(modelLoc, 1, GL_FALSE, glm::value_ptr(model));
+        shader.setMat4("model", model);
+
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
