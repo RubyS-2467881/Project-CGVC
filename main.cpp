@@ -19,6 +19,7 @@ void processMouseInput(GLFWwindow* window, double x, double y);
 void drawRail(const std::vector<glm::vec3>& path, const Shader& shader, unsigned int VAO);
 void drawCurvedTies(const std::vector<glm::vec3>& tiePositions, const Shader& shader, unsigned int VAO);
 void drawStraightTies(const std::vector<glm::vec3>& tiePositions, const Shader& shader, unsigned int VAO);
+void drawBezierTies(const std::vector<glm::vec3>& tiePositions, const Shader& shader, unsigned int VAO);
 int generateCylinder(int segments, unsigned int& vertexCount);
 void generateTiesBetweenCurvedRails(const std::vector<glm::vec3>& leftRailPath, const std::vector<glm::vec3>& rightRailPath, std::vector<glm::vec3>& ties);
 void generateTiesBetweenStraightRails(const std::vector<std::pair<glm::vec3, glm::vec3>>& leftSegments, const std::vector<std::pair<glm::vec3, glm::vec3>>& rightSegments, std::vector<glm::vec3>& ties, int numTies);
@@ -39,6 +40,7 @@ Camera camera = Camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 1.0f, 0.0f),
 bool firstMouse = true;
 float lastX = 800 / 2.0f;
 float lastY = 600 / 2.0f;
+bool firstPersonMode = false;
 
 // Wheels
 float wheelRadius = 0.1f;
@@ -440,8 +442,8 @@ int main() {
         auto leftCurve = generateCurvedRailAroundCenter(curveCenter, cornerRadius, startAngle, -glm::radians(90.0f), 20, -railSpacing / 2.0f);
         auto rightCurve = generateCurvedRailAroundCenter(curveCenter, cornerRadius, startAngle, -glm::radians(90.0f), 20, railSpacing / 2.0f);
 
-        leftRailPath.insert(leftRailPath.end(), leftCurve.begin(), leftCurve.end());
-        rightRailPath.insert(rightRailPath.end(), rightCurve.begin(), rightCurve.end());
+        leftRailPath.insert(leftRailPath.end(), rightCurve.begin(), rightCurve.end());
+        rightRailPath.insert(rightRailPath.end(), leftCurve.begin(), leftCurve.end());
 
         leftCurvedRailPath.insert(leftCurvedRailPath.end(), leftCurve.begin(), leftCurve.end());
         rightCurvedRailPath.insert(rightCurvedRailPath.end(), rightCurve.begin(), rightCurve.end());
@@ -478,7 +480,7 @@ int main() {
         deltaTime = currentFrame - lastFrame;
         lastFrame = currentFrame;
 
-        //Animation
+        // Animation
         cartDistance += cartSpeed * deltaTime;
         float distanceTravelled = cartSpeed * deltaTime;
         wheelRotation = fmod(wheelRotation, 2.0f * glm::pi<float>());
@@ -492,13 +494,28 @@ int main() {
 
             cartDistance -= segmentLength;
             ++index;
-			if (index >= static_cast<int>(centerRail.size()) - 1) {
-				cartDistance = 0.0f;
+            if (index >= static_cast<int>(centerRail.size()) - 1) {
+                cartDistance = 0.0f;
                 index = 0;
-			}
+            }
         }
 
         processInput(window);
+
+        // Check if first-person mode is enabled
+        if (firstPersonMode) {
+            // Lock the camera to the cart position
+            glm::vec3 from = centerRail[index];
+            glm::vec3 to = centerRail[index + 1];
+            float t = cartDistance / glm::distance(from, to);
+            glm::vec3 cartPos = glm::mix(from, to, t);
+            glm::vec3 direction = glm::normalize(to - from);
+
+            // Update the camera position and orientation based on the cart's position
+            camera.position = cartPos + glm::vec3(0.0f, 1.0f, 0.0f); // Adjust Y for camera height
+            camera.front = direction;  // Camera follows the cart's forward direction
+            camera.updateCameraVectors();  // Update camera vectors based on the new front vector
+        }
 
         glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -508,17 +525,13 @@ int main() {
         shader.use();
         glBindVertexArray(VAO);
 
-
-        //Camera
+        // Camera (view and projection)
         glm::mat4 model = glm::mat4(1.0f);
         shader.setMat4("model", model);
-		shader.setMat4("view", camera.viewMatrix());
-		shader.setMat4("projection", glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f));
+        shader.setMat4("view", camera.viewMatrix());  // The camera view matrix is updated based on position
+        shader.setMat4("projection", glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f));
 
-        glm::mat4 view = glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.0f, -5.0f));
-        glm::mat4 projection = glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f);
-
-		// Cart
+        // Cart rendering logic (this part remains the same as before)
         glm::vec3 from = centerRail[index];
         glm::vec3 to = centerRail[index + 1];
         float t = cartDistance / glm::distance(from, to);
@@ -537,7 +550,7 @@ int main() {
         rotationMatrix[1] = glm::vec4(yAxis, 0.0f);
         rotationMatrix[2] = glm::vec4(zAxis, 0.0f);
 
-        // Body
+        // Render the body of the cart
         model = glm::mat4(1.0f);
         model = glm::translate(model, cartPos + glm::vec3(0.0f, 0.3f, 0.0f));
         model *= rotationMatrix;
@@ -547,7 +560,7 @@ int main() {
         glBindVertexArray(VAO);
         glDrawArrays(GL_TRIANGLES, 0, 36);
 
-        // Wheels
+        // Render the wheels of the cart (this part remains the same as before)
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture3);
 
@@ -564,21 +577,22 @@ int main() {
             glDrawArrays(GL_TRIANGLE_STRIP, 0, cylinderVertexCount);
         }
 
-
+        // Rail and other components rendering (this part remains unchanged)
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture2);
 
         drawRail(leftRailPath, shader, railVAO);
         drawRail(rightRailPath, shader, railVAO);
-		drawMidRail(centerRail, 0.25f, shader, railVAO);
+        drawMidRail(centerRail, 0.25f, shader, railVAO);
 
         drawCurvedTies(tiesCurved, shader, tiesVAO);
         drawStraightTies(tiesStraight, shader, tiesVAO);
-		drawCurvedTies(tiesBezier, shader, tiesVAO);
+        drawStraightTies(tiesBezier, shader, tiesVAO);
 
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
 
     glfwDestroyWindow(window);
     glfwTerminate();
@@ -605,6 +619,12 @@ void processInput(GLFWwindow* window) {
         camera.processKeyboardInput(UP, deltaTime);
     else if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
         camera.processKeyboardInput(DOWN, deltaTime);
+	else if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
+		firstPersonMode = !firstPersonMode;
+	//else if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS)
+	//	camera.position = glm::vec3(0.0f, 0.0f, 0.0f);
+	//else if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
+	//	camera.position = glm::vec3(0.0f, 1.0f, 0.0f);
 }
 
 void processMouseInput(GLFWwindow* window, double x, double y) {
@@ -713,7 +733,7 @@ void generateTiesBetweenStraightRails(const std::vector<std::pair<glm::vec3, glm
         glm::vec3 leftStep = (leftEnd - leftStart) / float(numTies - 1);
         glm::vec3 rightStep = (rightEnd - rightStart) / float(numTies - 1);
 
-        for (int j = 0; j < numTies; ++j) {
+        for (int j = 0; j < numTies - 1; ++j) {
             glm::vec3 leftPos = leftStart + leftStep * float(j);
             glm::vec3 rightPos = rightStart + rightStep * float(j);
 
@@ -724,7 +744,7 @@ void generateTiesBetweenStraightRails(const std::vector<std::pair<glm::vec3, glm
 }
 
 void generateTiesBetweenBezierRails(const std::vector<glm::vec3>& leftRailPath, const std::vector<glm::vec3>& rightRailPath, std::vector<glm::vec3>& tiePositions) {
-    for (size_t i = 2; i < leftRailPath.size(); i+= 10) {
+    for (size_t i = 2; i < leftRailPath.size(); i += 50) {
         glm::vec3 left = leftRailPath[i];
         glm::vec3 right = rightRailPath[i];
 
@@ -811,6 +831,45 @@ void drawStraightTies(const std::vector<glm::vec3>& tiePositions, const Shader& 
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 }
+
+void drawBezierTies(const std::vector<glm::vec3>& tiePositions, const Shader& shader, unsigned int VAO) {
+    for (size_t i = 0; i < tiePositions.size(); i += 10) {
+        glm::vec3 left = tiePositions[i];
+        glm::vec3 right = tiePositions[i + 1];
+        glm::vec3 tieDirection = right - left;
+        glm::vec3 tiePosition = (left + right) / 2.0f;
+
+        glm::mat4 model = glm::mat4(1.0f);
+        model = glm::translate(model, tiePosition);
+
+        glm::vec3 curveDirection = glm::normalize(tieDirection);
+        glm::vec3 referenceDirection = glm::vec3(1.0f, 0.0f, 0.0f);
+
+        // Special case for the Z-axis
+        if (glm::abs(curveDirection.z) > 0.99f) {
+            referenceDirection = glm::vec3(0.0f, 1.0f, 0.0f);  // Use the Y-axis for rotation
+        }
+
+        // Calculate the angle and axis of rotation
+        float angle = glm::acos(glm::dot(curveDirection, referenceDirection));
+        glm::vec3 axisOfRotation = glm::normalize(glm::cross(referenceDirection, curveDirection));
+
+        if (glm::length(axisOfRotation) < 0.01f) {
+            axisOfRotation = glm::vec3(0.0f, 1.0f, 0.0f);  // Default to Y-axis if the axis is near zero
+        }
+
+        glm::mat4 rotationMatrix = glm::rotate(glm::mat4(1.0f), angle, axisOfRotation);
+
+        model = model * rotationMatrix;
+        model = glm::rotate(model, glm::radians(90.0f), glm::vec3(0.0f, 1.0f, 0.0f));
+        model = glm::scale(model, glm::vec3(0.2f, 0.05f, glm::length(tieDirection)));
+        shader.setMat4("model", model);
+
+        glBindVertexArray(VAO);
+        glDrawArrays(GL_TRIANGLES, 0, 36);
+    }
+}
+
 
 glm::vec3 calculateMidpoint() {
     float minX = std::numeric_limits<float>::max();
