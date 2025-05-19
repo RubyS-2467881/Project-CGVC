@@ -214,6 +214,17 @@ float tiesVertices[] = {
      -0.5f, -0.05f, -0.5f, 0.0f, 0.0f
 };
 
+float tileVertices[] = {
+    // positions           // tex coords // normals
+    -0.5f, 0.0f, -0.5f,    0.0f, 0.0f,
+     0.5f, 0.0f, -0.5f,    1.0f, 0.0f,
+     0.5f, 0.0f,  0.5f,    1.0f, 1.0f,
+
+     0.5f, 0.0f,  0.5f,    1.0f, 1.0f,
+    -0.5f, 0.0f,  0.5f,    0.0f, 1.0f,
+    -0.5f, 0.0f, -0.5f,    0.0f, 0.0f,
+};
+
 
 int main() {
     // Window Setup
@@ -294,8 +305,22 @@ int main() {
 	glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void*)(3 * sizeof(float)));
     glEnableVertexAttribArray(1);
 
+    unsigned int tileVAO, tileVBO;
+    glGenVertexArrays(1, &tileVAO);
+    glGenBuffers(1, &tileVBO);
+
+    glBindVertexArray(tileVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, tileVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(tileVertices), tileVertices, GL_STATIC_DRAW);
+
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(0);
+
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(3 * sizeof(float)));
+    glEnableVertexAttribArray(1);
+
 	// Texture Setup
-    unsigned int texture, texture2, texture3;
+    unsigned int texture, texture2, texture3, floorTexture;
     glGenTextures(1, &texture);
     glBindTexture(GL_TEXTURE_2D, texture);
 
@@ -361,10 +386,35 @@ int main() {
     }
     stbi_image_free(data);
 
+    //Floor texture
+    glGenTextures(1, &floorTexture);
+    glBindTexture(GL_TEXTURE_2D, floorTexture);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    data = stbi_load("assets/floor.jpg", &width, &height, &nrChannels, 0);
+    std::cout << "STB reason: " << stbi_failure_reason() << std::endl;
+    if (data) {
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, width, height, 0, GL_RGB, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+        std::cout << "Floor loaded: " << width << "x" << height << " channels: " << nrChannels << std::endl;
+    }
+    else {
+        std::cout << "Failed to load floor texture!" << std::endl;
+        std::cout << "STB reason: " << stbi_failure_reason() << std::endl;
+        return -1;
+    }
+    stbi_image_free(data);
+
 	shader.use();
 	glUniform1i(glGetUniformLocation(shader.ID, "texture1"), 0);
 	shader.setInt("texture2", 1);
 	shader.setInt("texture3", 2);
+	shader.setInt("floorTexture", 3);
 
     glEnable(GL_DEPTH_TEST);
 
@@ -577,6 +627,19 @@ int main() {
             glDrawArrays(GL_TRIANGLE_STRIP, 0, cylinderVertexCount);
         }
 
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, floorTexture);
+        glBindVertexArray(tileVAO);
+
+        for (int x = -50; x < 50; ++x) {
+            for (int z = -50; z < 50; ++z) {
+                glm::mat4 model = glm::mat4(1.0f);
+                model = glm::translate(model, glm::vec3(x, -0.6f, z));
+                shader.setMat4("model", model);
+                glDrawArrays(GL_TRIANGLES, 0, 6);
+            }
+        }
+
         // Rail and other components rendering (this part remains unchanged)
         glActiveTexture(GL_TEXTURE0);
         glBindTexture(GL_TEXTURE_2D, texture2);
@@ -733,7 +796,7 @@ void generateTiesBetweenStraightRails(const std::vector<std::pair<glm::vec3, glm
         glm::vec3 leftStep = (leftEnd - leftStart) / float(numTies - 1);
         glm::vec3 rightStep = (rightEnd - rightStart) / float(numTies - 1);
 
-        for (int j = 0; j < numTies - 1; ++j) {
+        for (int j = 0; j < numTies; ++j) {
             glm::vec3 leftPos = leftStart + leftStep * float(j);
             glm::vec3 rightPos = rightStart + rightStep * float(j);
 
