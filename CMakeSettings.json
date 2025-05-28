@@ -1,0 +1,16 @@
+﻿{
+  "configurations": [
+    {
+      "name": "x64-Debug",
+      "generator": "Visual Studio 17 2022",
+      "configurationType": "Debug",
+      "inheritEnvironments": [ "msvc_x86_arm64" ],
+      "buildRoot": "${projectDir}\\build",
+      "installRoot": "${projectDir}\\out\\install\\${name}",
+      "cmakeCommandArgs": "",
+      "buildCommandArgs": "",
+      "ctestCommandArgs": "",
+      "cmakeToolchain": "C:/Users/rubys/OneDrive/Documenten/School/Schakelprogramma/_Computer Graphics/Project/vcpkg/scripts/buildsystems/vcpkg.cmake"
+    }
+  ]
+}

@@ -11,8 +11,8 @@ include_directories(${CMAKE_SOURCE_DIR}/camera)
 include_directories(${CMAKE_SOURCE_DIR}/shaders)
 include_directories(${CMAKE_SOURCE_DIR}/assets)
 include_directories(${CMAKE_SOURCE_DIR})
-file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR})
-file(COPY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR})
+file(COPY ${CMAKE_SOURCE_DIR}/shaders DESTINATION ${CMAKE_BINARY_DIR}/Debug)
+file(COPY ${CMAKE_SOURCE_DIR}/assets DESTINATION ${CMAKE_BINARY_DIR}/Debug)
 
 # ---- Fetch GLFW using FetchContent ----
 include(FetchContent)
@@ -27,15 +27,20 @@ FetchContent_MakeAvailable(glfw)
 add_executable(Project-CGVC
     main.cpp
     glad.c
- "glm.h" "camera/camera.h" "camera/cameraDirection.h"  "shaders/shader.h" "stb.cpp")
+ "glm.h" "camera/camera.h" "camera/cameraDirection.h"  "shaders/shader.h" "stb.cpp" "mesh.h" "mesh.cpp" "model.h" "model.cpp")
 
-# Make sure glad.c uses the right includes
-target_include_directories(Project-CGVC PRIVATE ${CMAKE_SOURCE_DIR}/includes)
+find_package(assimp CONFIG REQUIRED)
 
-# ---- Link Libraries ----
-target_link_libraries(Project-CGVC glfw)
+target_link_libraries(Project-CGVC
+  PRIVATE
+    glfw
+    assimp::assimp
+)
 
 # ---- Windows-specific OpenGL linking ----
 if (WIN32)
-    target_link_libraries(Project-CGVC opengl32)
+    target_link_libraries(Project-CGVC PRIVATE opengl32)
 endif()
+
+
+
