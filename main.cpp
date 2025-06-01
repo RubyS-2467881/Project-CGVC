@@ -35,6 +35,8 @@ void drawMidRail(const std::vector<glm::vec3>& path, float y, const Shader& shad
 // Window
 float deltaTime = 0.0f;
 float lastFrame = 0.0f;
+int SCR_WIDTH = 800;
+int SCR_HEIGHT = 600;
 
 // Camera
 Camera camera = Camera(glm::vec3(0.0f, 0.0f, 3.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f);
@@ -60,6 +62,8 @@ struct PointLight {
     glm::vec3 color;
     float intensity;
 };
+
+int currentKernel = 0;
 
 // Body
 float cubeVertices[] = {
@@ -232,6 +236,17 @@ float tileVertices[] = {
     -0.5f, 0.0f, -0.5f,   0.0f, 1.0f, 0.0f,   0.0f, 0.0f
 };
 
+float quadVertices[] = {
+    // positions   // texCoords
+    -1.0f,  1.0f,  0.0f, 1.0f,
+    -1.0f, -1.0f,  0.0f, 0.0f,
+     1.0f, -1.0f,  1.0f, 0.0f,
+
+    -1.0f,  1.0f,  0.0f, 1.0f,
+     1.0f, -1.0f,  1.0f, 0.0f,
+     1.0f,  1.0f,  1.0f, 1.0f
+};
+
 
 int main() {
     // Window Setup
@@ -244,7 +259,7 @@ int main() {
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
 
-    GLFWwindow* window = glfwCreateWindow(800, 600, "My First OpenGL Window", nullptr, nullptr);
+    GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "My First OpenGL Window", nullptr, nullptr);
     if (window == nullptr) {
         std::cerr << "Failed to create GLFW window\n";
         glfwTerminate();
@@ -264,7 +279,8 @@ int main() {
     // Shaders
     Shader shader("shaders/shader.vs", "shaders/shader.frag");
     Shader modelShader("shaders/shader.vs", "shaders/model.frag");
-    Shader lightShader("shaders/shader.vs", "shaders/light.frag");
+    Shader screenShader("shaders/screen.vs", "shaders/screen.frag");
+    Shader lightShader("shaders/screen.vs", "shaders/light.frag");
 
     // Vertex Array Object and Buffer Object Setup
     unsigned int VAO, VBO;
@@ -349,6 +365,42 @@ int main() {
     // TexCoord (location = 2)
     glVertexAttribPointer(2, 2, GL_FLOAT, GL_FALSE, 8 * sizeof(float), (void*)(6 * sizeof(float)));
     glEnableVertexAttribArray(2);
+
+    unsigned int quadVAO, quadVBO;
+    glGenVertexArrays(1, &quadVAO);
+    glGenBuffers(1, &quadVBO);
+    glBindVertexArray(quadVAO);
+    glBindBuffer(GL_ARRAY_BUFFER, quadVBO);
+    glBufferData(GL_ARRAY_BUFFER, sizeof(quadVertices), quadVertices, GL_STATIC_DRAW);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)0);
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 4 * sizeof(float), (void*)(2 * sizeof(float)));
+
+    //FBO setup
+    GLuint fbo, colorTexture, rbo;
+    glGenFramebuffers(1, &fbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+
+    // Color attachment
+    glGenTextures(1, &colorTexture);
+    glBindTexture(GL_TEXTURE_2D, colorTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, colorTexture, 0);
+
+    // Renderbuffer for depth/stencil
+    glGenRenderbuffers(1, &rbo);
+    glBindRenderbuffer(GL_RENDERBUFFER, rbo);
+    glRenderbufferStorage(GL_RENDERBUFFER, GL_DEPTH24_STENCIL8, SCR_WIDTH, SCR_HEIGHT);
+    glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_STENCIL_ATTACHMENT, GL_RENDERBUFFER, rbo);
+
+    // Check
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cerr << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
+
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
 	// Texture Setup
     unsigned int texture, texture2, texture3, floorTexture;
@@ -450,7 +502,10 @@ int main() {
     shader.setVec3("lightPos", glm::vec3(2.0f, 10.0f, 2.0f));
     shader.setVec3("viewPos", camera.position);
 
-    glEnable(GL_DEPTH_TEST);
+    screenShader.use();
+    screenShader.setInt("screenTexture", 0);
+    screenShader.setInt("bloomTexture", 1);
+    screenShader.setFloat("intensity", 1.0f);
 
     // Rail Generation
     std::vector<glm::vec3> leftRailPath;
@@ -605,6 +660,8 @@ int main() {
         float distanceTravelled = cartSpeed * deltaTime;
         wheelRotation = fmod(wheelRotation, 2.0f * glm::pi<float>());
 
+        screenShader.setInt("kernelType", currentKernel);
+
         while (index < static_cast<int>(centerRail.size()) - 1) {
             glm::vec3 from = centerRail[index];
             glm::vec3 to = centerRail[index + 1];
@@ -637,6 +694,8 @@ int main() {
             camera.updateCameraVectors();  // Update camera vectors based on the new front vector
         }
 
+        glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+        glEnable(GL_DEPTH_TEST);
         glClearColor(0.1f, 0.2f, 0.3f, 1.0f);
         glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
@@ -755,6 +814,19 @@ int main() {
             torchModel.Draw(modelShader);
         }
 
+        glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
+        glDisable(GL_DEPTH_TEST); // screen quad doesn't need depth
+
+        // Clear screen and draw quad with post-processing shader
+        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        glClear(GL_COLOR_BUFFER_BIT);
+
+        screenShader.use();
+        screenShader.setVec2("texelSize", glm::vec2(1.0f / SCR_WIDTH, 1.0f / SCR_HEIGHT));
+        glBindVertexArray(quadVAO);
+        glBindTexture(GL_TEXTURE_2D, colorTexture); // from FBO
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
@@ -787,6 +859,10 @@ void processInput(GLFWwindow* window) {
         camera.processKeyboardInput(DOWN, deltaTime);
 	else if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
 		firstPersonMode = !firstPersonMode;
+    else if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) currentKernel = 1; 
+    else if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) currentKernel = 2;
+    else if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) currentKernel = 3;
+    else if (glfwGetKey(window, GLFW_KEY_4) == GLFW_PRESS) currentKernel = 4;
 	//else if (glfwGetKey(window, GLFW_KEY_C) == GLFW_PRESS)
 	//	camera.position = glm::vec3(0.0f, 0.0f, 0.0f);
 	//else if (glfwGetKey(window, GLFW_KEY_R) == GLFW_PRESS)
