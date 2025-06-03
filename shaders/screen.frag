@@ -4,10 +4,9 @@ out vec4 FragColor;
 in vec2 TexCoords;
 
 uniform sampler2D screenTexture;
-uniform sampler2D bloomTexture;
+
 uniform vec2 texelSize;
 uniform int kernelType;
-uniform float intensity;
 
 vec2 offsets[9] = vec2[](
     vec2(-texelSize.x,  texelSize.y),

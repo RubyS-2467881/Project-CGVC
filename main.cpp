@@ -7,7 +7,7 @@
 #include <glm/gtc/type_ptr.hpp>
 #include <camera.h>
 #include <vector>
-#include <glm/gtx/rotate_vector.hpp>µ
+#include <glm/gtx/rotate_vector.hpp>
 #include <cmath>
 #include <glm/gtx/quaternion.hpp>
 #include <shader.h>
@@ -281,6 +281,8 @@ int main() {
     Shader modelShader("shaders/shader.vs", "shaders/model.frag");
     Shader screenShader("shaders/screen.vs", "shaders/screen.frag");
     Shader lightShader("shaders/screen.vs", "shaders/light.frag");
+    Shader blurShader("shaders/screen.vs", "shaders/post.frag");
+    Shader bloomShader("shaders/screen.vs", "shaders/bloom.frag");
 
     // Vertex Array Object and Buffer Object Setup
     unsigned int VAO, VBO;
@@ -401,6 +403,51 @@ int main() {
         std::cerr << "ERROR::FRAMEBUFFER:: Framebuffer is not complete!" << std::endl;
 
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // === BLOOM FBOs ===
+    GLuint brightFBO, brightTexture;
+    glGenFramebuffers(1, &brightFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, brightFBO);
+
+    // Bright color texture
+    glGenTextures(1, &brightTexture);
+    glBindTexture(GL_TEXTURE_2D, brightTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_FLOAT, nullptr);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, brightTexture, 0);
+
+    // No depth needed
+    if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
+        std::cerr << "ERROR::FRAMEBUFFER:: Bright FBO is not complete!\n";
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    // === Ping-pong FBOs ===
+    GLuint pingpongFBO[2], pingpongTex[2];
+    glGenFramebuffers(2, pingpongFBO);
+    glGenTextures(2, pingpongTex);
+    for (int i = 0; i < 2; ++i) {
+        glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[i]);
+        glBindTexture(GL_TEXTURE_2D, pingpongTex[i]);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB16F, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_FLOAT, nullptr);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, pingpongTex[i], 0);
+    }
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+    GLuint compositeFBO, compositeTexture;
+    glGenFramebuffers(1, &compositeFBO);
+    glBindFramebuffer(GL_FRAMEBUFFER, compositeFBO);
+
+    glGenTextures(1, &compositeTexture);
+    glBindTexture(GL_TEXTURE_2D, compositeTexture);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGB, GL_UNSIGNED_BYTE, NULL);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, compositeTexture, 0);
+    assert(glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE);
 
 	// Texture Setup
     unsigned int texture, texture2, texture3, floorTexture;
@@ -814,17 +861,56 @@ int main() {
             torchModel.Draw(modelShader);
         }
 
-        glBindFramebuffer(GL_FRAMEBUFFER, 0); // back to default
-        glDisable(GL_DEPTH_TEST); // screen quad doesn't need depth
-
-        // Clear screen and draw quad with post-processing shader
-        glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+        // Step 1: Extract bright parts
+        glBindFramebuffer(GL_FRAMEBUFFER, brightFBO);
         glClear(GL_COLOR_BUFFER_BIT);
+        lightShader.use();
+        lightShader.setFloat("threshold", 0.4f);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, colorTexture);
+        glBindVertexArray(quadVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        // Step 2: Blur bright texture
+        bool horizontal = true, first_iteration = true;
+        int blurAmount = 10;
+        blurShader.use();
+        for (int i = 0; i < blurAmount; ++i) {
+            glBindFramebuffer(GL_FRAMEBUFFER, pingpongFBO[horizontal]);
+            blurShader.setBool("horizontal", horizontal);
+
+            glBindTexture(GL_TEXTURE_2D, first_iteration ? brightTexture : pingpongTex[!horizontal]);
+            glBindVertexArray(quadVAO);
+            glDrawArrays(GL_TRIANGLES, 0, 6);
+
+            horizontal = !horizontal;
+            if (first_iteration) first_iteration = false;
+        }
+        glBindFramebuffer(GL_FRAMEBUFFER, compositeFBO);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+        // Step 3: Final composite
+        bloomShader.use();
+        bloomShader.setFloat("intensity", 1.5f);
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, colorTexture);
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, pingpongTex[!horizontal]);
+
+        glBindVertexArray(quadVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
         screenShader.use();
+        screenShader.setInt("kernelType", currentKernel);
         screenShader.setVec2("texelSize", glm::vec2(1.0f / SCR_WIDTH, 1.0f / SCR_HEIGHT));
+
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, compositeTexture);
         glBindVertexArray(quadVAO);
-        glBindTexture(GL_TEXTURE_2D, colorTexture); // from FBO
         glDrawArrays(GL_TRIANGLES, 0, 6);
 
         glfwSwapBuffers(window);
