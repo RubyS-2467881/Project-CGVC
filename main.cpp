@@ -31,6 +31,7 @@ std::vector<glm::vec3> calculateCenterRail(const std::vector<glm::vec3>& leftRai
 int findClosestXZIndex(const glm::vec3& centerPoint, const std::vector<glm::vec3>& centerRail);
 std::vector<glm::vec3> generateBezierHill(glm::vec3 start, glm::vec3 direction, float segmentLength, int numSegments, float hillHeight);
 void drawMidRail(const std::vector<glm::vec3>& path, float y, const Shader& shader, unsigned int VAO);
+GLuint loadTexture(const char* path, bool alpha = false);
 
 // Window
 float deltaTime = 0.0f;
@@ -283,6 +284,7 @@ int main() {
     Shader lightShader("shaders/screen.vs", "shaders/light.frag");
     Shader blurShader("shaders/screen.vs", "shaders/post.frag");
     Shader bloomShader("shaders/screen.vs", "shaders/bloom.frag");
+    Shader chromakeyShader("shaders/chroma.vs", "shaders/chroma.frag");
 
     // Vertex Array Object and Buffer Object Setup
     unsigned int VAO, VBO;
@@ -540,6 +542,9 @@ int main() {
     }
     stbi_image_free(data);
 
+    GLuint chromaKeyTexture = loadTexture("assets/green-screen.png", true);
+    GLuint newTexture = loadTexture("assets/norway.jpg", true);
+
     Model torchModel("assets/models/torch/model.obj");
 
 	shader.use();
@@ -553,6 +558,9 @@ int main() {
     screenShader.setInt("screenTexture", 0);
     screenShader.setInt("bloomTexture", 1);
     screenShader.setFloat("intensity", 1.0f);
+
+    chromakeyShader.use();
+    chromakeyShader.setInt("chromaTexture", 0);
 
     // Rail Generation
     std::vector<glm::vec3> leftRailPath;
@@ -843,6 +851,47 @@ int main() {
         drawStraightTies(tiesStraight, shader, tiesVAO);
         drawStraightTies(tiesBezier, shader, tiesVAO);
 
+        // Draw raw green screen
+        shader.use();
+        shader.setInt("texture1", 0);
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, chromaKeyTexture);
+
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(4.0f, 0.01f, -2.0f)); // left screen
+        model = glm::scale(model, glm::vec3(4.0f, 1.0f, 3.0f));
+        shader.setMat4("model", model);
+        shader.setMat4("view", camera.viewMatrix());
+        shader.setMat4("projection", glm::perspective(glm::radians(45.0f), 800.0f / 600.0f, 0.1f, 100.0f));
+
+        glBindVertexArray(tileVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
+        chromakeyShader.use();
+        chromakeyShader.setVec3("keyColorYCbCr", glm::vec3(0.587, 0.169, 0.081));
+        chromakeyShader.setFloat("threshold", 0.2f);
+
+        // Green screen input
+        glActiveTexture(GL_TEXTURE0);
+        glBindTexture(GL_TEXTURE_2D, chromaKeyTexture);
+        chromakeyShader.setInt("chromaTexture", 0);
+
+        // Background image
+        glActiveTexture(GL_TEXTURE1);
+        glBindTexture(GL_TEXTURE_2D, newTexture);
+        chromakeyShader.setInt("newTexture", 1);
+
+        // Right screen
+        model = glm::mat4(1.0f);
+        model = glm::translate(model, glm::vec3(9.0f, 0.01f, -2.0f));
+        model = glm::scale(model, glm::vec3(4.0f, 1.0f, 3.0f));
+        chromakeyShader.setMat4("model", model);
+        chromakeyShader.setMat4("view", camera.viewMatrix());
+        chromakeyShader.setMat4("projection", glm::perspective(glm::radians(45.0f), 800.f / 600.f, 0.1f, 100.f));
+
+        glBindVertexArray(tileVAO);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+
         //Lantern by Ian MacGillivray [CC-BY] via Poly Pizza
         glm::mat4 torchModelMatrix = glm::mat4(1.0f);
         torchModelMatrix = glm::translate(torchModelMatrix, glm::vec3(2.0f, 0.0f, 2.0f));
@@ -912,6 +961,11 @@ int main() {
         glBindTexture(GL_TEXTURE_2D, compositeTexture);
         glBindVertexArray(quadVAO);
         glDrawArrays(GL_TRIANGLES, 0, 6);
+
+
+
+
+
 
         glfwSwapBuffers(window);
         glfwPollEvents();
@@ -1313,4 +1367,41 @@ void drawMidRail(const std::vector<glm::vec3>& path, float y, const Shader& shad
         glDrawArrays(GL_TRIANGLES, 0, 36);
     }
 }
+
+GLuint loadTexture(const char* path, bool alpha) {
+    GLuint textureID;
+    glGenTextures(1, &textureID);
+
+    int width, height, nrChannels;
+    stbi_set_flip_vertically_on_load(true);
+    unsigned char* data = stbi_load(path, &width, &height, &nrChannels, 0);
+    if (data) {
+        GLenum format;
+        if (nrChannels == 1)
+            format = GL_RED;
+        else if (nrChannels == 3)
+            format = GL_RGB;
+        else if (nrChannels == 4)
+            format = GL_RGBA;
+
+        glBindTexture(GL_TEXTURE_2D, textureID);
+        glTexImage2D(GL_TEXTURE_2D, 0, format, width, height, 0, format, GL_UNSIGNED_BYTE, data);
+        glGenerateMipmap(GL_TEXTURE_2D);
+
+        // Set wrap and filter
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+
+        stbi_image_free(data);
+    }
+    else {
+        std::cout << "Failed to load texture: " << path << std::endl;
+        stbi_image_free(data);
+    }
+
+    return textureID;
+}
+
 
