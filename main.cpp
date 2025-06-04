@@ -32,6 +32,8 @@ int findClosestXZIndex(const glm::vec3& centerPoint, const std::vector<glm::vec3
 std::vector<glm::vec3> generateBezierHill(glm::vec3 start, glm::vec3 direction, float segmentLength, int numSegments, float hillHeight);
 void drawMidRail(const std::vector<glm::vec3>& path, float y, const Shader& shader, unsigned int VAO);
 GLuint loadTexture(const char* path, bool alpha = false);
+bool rayIntersectsAABB(glm::vec3 rayOrigin, glm::vec3 rayDir, glm::vec3 aabbMin, glm::vec3 aabbMax);
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods);
 
 // Window
 float deltaTime = 0.0f;
@@ -45,6 +47,8 @@ bool firstMouse = true;
 float lastX = 800 / 2.0f;
 float lastY = 600 / 2.0f;
 bool firstPersonMode = false;
+bool fKeyWasPressed = false;
+bool leftMouseClicked = false;
 
 // Wheels
 float wheelRadius = 0.1f;
@@ -268,6 +272,7 @@ int main() {
     }
     glfwMakeContextCurrent(window);
     glfwSetCursorPosCallback(window, processMouseInput);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
     glfwSetInputMode(window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
@@ -734,19 +739,59 @@ int main() {
 
         processInput(window);
 
+        if (leftMouseClicked) {
+            leftMouseClicked = false;  // Reset the flag
+
+            double xpos, ypos;
+            glfwGetCursorPos(window, &xpos, &ypos);
+
+            // Convert to normalized device coordinates
+            float x = (2.0f * xpos) / SCR_WIDTH - 1.0f;
+            float y = 1.0f - (2.0f * ypos) / SCR_HEIGHT;
+            float z = 1.0f;
+            glm::vec3 ray_nds = glm::vec3(x, y, z);
+
+            glm::vec4 ray_clip = glm::vec4(ray_nds.x, ray_nds.y, -1.0f, 1.0f);
+
+            glm::mat4 projection = glm::perspective(glm::radians(45.0f), (float)SCR_WIDTH / (float)SCR_HEIGHT, 0.1f, 100.0f);
+            glm::mat4 view = camera.viewMatrix();
+            glm::mat4 invVP = glm::inverse(projection * view);
+
+            glm::vec4 ray_eye = glm::inverse(projection) * ray_clip;
+            ray_eye = glm::vec4(ray_eye.x, ray_eye.y, -1.0, 0.0);
+
+            glm::vec3 ray_wor = glm::normalize(glm::vec3(glm::inverse(view) * ray_eye));
+            glm::vec3 rayOrigin = camera.position;
+
+            // Define cart AABB bounds (you can refine this)
+            glm::vec3 from = centerRail[index];
+            glm::vec3 to = centerRail[index + 1];
+            float t = cartDistance / glm::distance(from, to);
+            glm::vec3 cartPos = glm::mix(from, to, t) + glm::vec3(0.0f, 0.3f, 0.0f);  // Same offset as cart body
+
+            glm::vec3 halfExtents = glm::vec3(0.5f, 0.125f, 0.25f);  // Based on cart scale in render
+            glm::vec3 aabbMin = cartPos - halfExtents;
+            glm::vec3 aabbMax = cartPos + halfExtents;
+
+            if (rayIntersectsAABB(rayOrigin, ray_wor, aabbMin, aabbMax)) {
+                firstPersonMode = true;
+            }
+        }
+
+
         // Check if first-person mode is enabled
         if (firstPersonMode) {
-            // Lock the camera to the cart position
             glm::vec3 from = centerRail[index];
             glm::vec3 to = centerRail[index + 1];
             float t = cartDistance / glm::distance(from, to);
             glm::vec3 cartPos = glm::mix(from, to, t);
             glm::vec3 direction = glm::normalize(to - from);
 
-            // Update the camera position and orientation based on the cart's position
-            camera.position = cartPos + glm::vec3(0.0f, 1.0f, 0.0f); // Adjust Y for camera height
-            camera.front = direction;  // Camera follows the cart's forward direction
-            camera.updateCameraVectors();  // Update camera vectors based on the new front vector
+            camera.position = cartPos + glm::vec3(0.0f, 1.0f, 0.0f);
+            camera.yaw = glm::degrees(atan2(direction.z, direction.x));
+            camera.pitch = glm::degrees(asin(direction.y));
+
+            camera.updateCameraVectors();
         }
 
         glBindFramebuffer(GL_FRAMEBUFFER, fbo);
@@ -997,8 +1042,12 @@ void processInput(GLFWwindow* window) {
         camera.processKeyboardInput(UP, deltaTime);
     else if (glfwGetKey(window, GLFW_KEY_LEFT_CONTROL) == GLFW_PRESS)
         camera.processKeyboardInput(DOWN, deltaTime);
-	else if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS)
-		firstPersonMode = !firstPersonMode;
+    else if (glfwGetKey(window, GLFW_KEY_F) == GLFW_RELEASE)
+        fKeyWasPressed = true;
+    else if (glfwGetKey(window, GLFW_KEY_F) == GLFW_PRESS && fKeyWasPressed) {
+        fKeyWasPressed = false;
+        firstPersonMode = !firstPersonMode;
+    }
     else if (glfwGetKey(window, GLFW_KEY_1) == GLFW_PRESS) currentKernel = 1; 
     else if (glfwGetKey(window, GLFW_KEY_2) == GLFW_PRESS) currentKernel = 2;
     else if (glfwGetKey(window, GLFW_KEY_3) == GLFW_PRESS) currentKernel = 3;
@@ -1010,6 +1059,10 @@ void processInput(GLFWwindow* window) {
 }
 
 void processMouseInput(GLFWwindow* window, double x, double y) {
+    if (firstPersonMode) {
+        return;
+    }
+
     if (firstMouse) {
         lastX = static_cast<float>(x);
         lastY = static_cast<float>(y);
@@ -1023,6 +1076,12 @@ void processMouseInput(GLFWwindow* window, double x, double y) {
     lastY = static_cast<float>(y);
 
     camera.processMouseInput(xOffset, yOffset);
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+    if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+        leftMouseClicked = true;
+    }
 }
 
 int generateCylinder(int segments, unsigned int& vertexCount) {
@@ -1402,6 +1461,27 @@ GLuint loadTexture(const char* path, bool alpha) {
     }
 
     return textureID;
+}
+
+bool rayIntersectsAABB(glm::vec3 rayOrigin, glm::vec3 rayDir, glm::vec3 aabbMin, glm::vec3 aabbMax) {
+    float tMin = (aabbMin.x - rayOrigin.x) / rayDir.x;
+    float tMax = (aabbMax.x - rayOrigin.x) / rayDir.x;
+    if (tMin > tMax) std::swap(tMin, tMax);
+
+    float tyMin = (aabbMin.y - rayOrigin.y) / rayDir.y;
+    float tyMax = (aabbMax.y - rayOrigin.y) / rayDir.y;
+    if (tyMin > tyMax) std::swap(tyMin, tyMax);
+
+    if ((tMin > tyMax) || (tyMin > tMax)) return false;
+
+    if (tyMin > tMin) tMin = tyMin;
+    if (tyMax < tMax) tMax = tyMax;
+
+    float tzMin = (aabbMin.z - rayOrigin.z) / rayDir.z;
+    float tzMax = (aabbMax.z - rayOrigin.z) / rayDir.z;
+    if (tzMin > tzMax) std::swap(tzMin, tzMax);
+
+    return !((tMin > tzMax) || (tzMin > tMax));
 }
 
 
